@@ -1,3 +1,4 @@
+import os
 import flet as ft
 from datetime import datetime, timedelta
 from backend.database.schema import inicializar_db
