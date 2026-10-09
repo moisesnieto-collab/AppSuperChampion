@@ -811,8 +811,12 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 8080))
     try:
-        # Usar ft.run() que es compatible con flet 0.28.3 y 1.0.3
-        ft.run(main, host="0.0.0.0", port=puerto, view=ft.AppView.WEB_BROWSER)
+        # Si estamos en Render (variable PORT definida), usar modo web
+        if os.environ.get("PORT"):
+            ft.run(main, host="0.0.0.0", port=puerto, view=ft.AppView.WEB_BROWSER)
+        else:
+            # Modo local/desktop
+            ft.run(main)
     except Exception as e:
         print(f"[ERROR] Application error: {e}")
         import traceback
