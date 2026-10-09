@@ -810,6 +810,12 @@ def main(page: ft.Page):
 
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 8080))
-    ft.app(
-        target=main, host="0.0.0.0", port=puerto, view=ft.AppView.WEB_BROWSER
-    )
+    try:
+        ft.app(
+            target=main, host="0.0.0.0", port=puerto, view=ft.AppView.WEB_BROWSER
+        )
+    except Exception as e:
+        print(f"[ERROR] Application error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
