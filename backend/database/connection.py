@@ -53,23 +53,27 @@ class TursoCursor:
     def execute(self, sql, params=None):
         import requests
         headers = {"Authorization": f"Bearer {self.token}"}
-        
+
         if params:
             # Convertir params a formato de Turso
             data = {"statements": [{"q": sql, "params": params}]}
         else:
             data = {"statements": [{"q": sql}]}
-        
+
         response = requests.post(f"{self.url}", json=data, headers=headers)
         response.raise_for_status()
         result = response.json()
-        
-        if result.get("results"):
+
+        # La API de Turso devuelve una lista de resultados
+        if isinstance(result, list) and len(result) > 0:
+            self._results = result[0].get("response", {}).get("rows", [])
+            self._lastrowid = result[0].get("last_insert_rowid")
+        elif isinstance(result, dict) and result.get("results"):
             self._results = result["results"][0].get("response", {}).get("rows", [])
             self._lastrowid = result["results"][0].get("last_insert_rowid")
         else:
             self._results = []
-        
+
         return self
 
     def fetchall(self):
