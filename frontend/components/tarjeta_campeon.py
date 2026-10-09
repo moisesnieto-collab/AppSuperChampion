@@ -41,7 +41,7 @@ def crear_tarjeta_campeon(
                 padding=16,
                 bgcolor="#3B2D05",
                 border_radius=12,
-                border=ft.Border.all(2, COLOR_DORADO)
+                border=ft.border.all(2, COLOR_DORADO)
             ),
             ft.Text(
                 motivo,
@@ -295,5 +295,5 @@ def crear_tarjeta_campeon(
         padding=16,
         bgcolor=COLOR_TARJETA,
         border_radius=10,
-        border=ft.Border.all(2, color_borde)
+        border=ft.border.all(2, color_borde)
     )
