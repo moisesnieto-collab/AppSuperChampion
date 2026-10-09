@@ -95,7 +95,7 @@ def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo]) ->
                 ft.Text(f"Tabla de Posiciones - {nombre_grupo}", size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
             ], spacing=8),
             ft.Divider(color=COLOR_BORDE, height=1),
-            ft.ListView([tabla_widget], scroll=ft.ScrollMode.ADAPTIVE),
+            ft.ListView([tabla_widget]),
         ], spacing=8),
         padding=12,
         bgcolor=COLOR_TARJETA,
