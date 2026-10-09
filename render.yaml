@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: superchampion
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: TURSO_URL
+        sync: false
+      - key: TURSO_TOKEN
+        sync: false
+      - key: ORGANIZADOR_PIN
+        sync: false
