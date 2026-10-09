@@ -11,13 +11,12 @@ def obtener_conexion() -> Any:
     """
     global _CONEXION_TURSO
 
-    # Si TURSO_TOKEN está presente y URL es de turso, usar cliente turso
+    # Si TURSO_TOKEN está presente y URL es de turso, usar API HTTP
     if TURSO_TOKEN and TURSO_URL and TURSO_URL.startswith(("libsql://", "https://", "http://")):
         try:
-            from turso import Client
             if _CONEXION_TURSO is None:
-                _CONEXION_TURSO = Client(url=TURSO_URL, auth_token=TURSO_TOKEN)
-            return TursoConnection(_CONEXION_TURSO)
+                _CONEXION_TURSO = TursoConnection(TURSO_URL, TURSO_TOKEN)
+            return _CONEXION_TURSO
         except Exception as e:
             print(f"Error conectando a Turso: {e}. Usando SQLite local.")
 
@@ -28,12 +27,13 @@ def obtener_conexion() -> Any:
 
 
 class TursoConnection:
-    """Wrapper para adaptar la API de Turso a la de sqlite3"""
-    def __init__(self, client):
-        self.client = client
+    """Wrapper para usar la API HTTP de Turso"""
+    def __init__(self, url, token):
+        self.url = url.replace("libsql://", "https://")
+        self.token = token
 
     def cursor(self):
-        return TursoCursor(self.client)
+        return TursoCursor(self.url, self.token)
 
     def commit(self):
         pass  # Turso maneja commits automáticamente
@@ -43,22 +43,37 @@ class TursoConnection:
 
 
 class TursoCursor:
-    """Wrapper para adaptar el cursor de Turso a la de sqlite3"""
-    def __init__(self, client):
-        self.client = client
+    """Wrapper para adaptar la API HTTP de Turso a la de sqlite3"""
+    def __init__(self, url, token):
+        self.url = url
+        self.token = token
         self._results = None
+        self._lastrowid = None
 
     def execute(self, sql, params=None):
+        import requests
+        headers = {"Authorization": f"Bearer {self.token}"}
+        
         if params:
-            self._results = self.client.execute(sql, params)
+            # Convertir params a formato de Turso
+            data = {"statements": [{"q": sql, "params": params}]}
         else:
-            self._results = self.client.execute(sql)
+            data = {"statements": [{"q": sql}]}
+        
+        response = requests.post(f"{self.url}", json=data, headers=headers)
+        response.raise_for_status()
+        result = response.json()
+        
+        if result.get("results"):
+            self._results = result["results"][0].get("response", {}).get("rows", [])
+            self._lastrowid = result["results"][0].get("last_insert_rowid")
+        else:
+            self._results = []
+        
         return self
 
     def fetchall(self):
-        if self._results:
-            return self._results
-        return []
+        return self._results if self._results else []
 
     def fetchone(self):
         if self._results and len(self._results) > 0:
@@ -66,6 +81,17 @@ class TursoCursor:
         return None
 
     def executemany(self, sql, params_list):
-        for params in params_list:
-            self.client.execute(sql, params)
+        import requests
+        headers = {"Authorization": f"Bearer {self.token}"}
+        
+        statements = [{"q": sql, "params": params} for params in params_list]
+        data = {"statements": statements}
+        
+        response = requests.post(f"{self.url}", json=data, headers=headers)
+        response.raise_for_status()
+        
         return self
+
+    @property
+    def lastrowid(self):
+        return self._lastrowid
