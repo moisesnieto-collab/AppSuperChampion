@@ -811,16 +811,16 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 8080))
     try:
-        # Si estamos en Render (variable PORT definida), usar modo web con ASGI
+        # Si estamos en Render (variable PORT definida), exportar ASGI app y usar uvicorn
         if os.environ.get("PORT"):
             # Export ASGI app for production deployment
-            app = ft.app(main, export_asgi_app=True)
-            # Run with uvicorn (Render will do this automatically)
+            app = ft.run(main, export_asgi_app=True)
+            # Run with uvicorn
             import uvicorn
             uvicorn.run(app, host="0.0.0.0", port=puerto)
         else:
-            # Modo local/desktop
-            ft.app(main)
+            # Modo local/desktop - run the app directly
+            ft.run(main)
     except Exception as e:
         print(f"[ERROR] Application error: {e}")
         import traceback
