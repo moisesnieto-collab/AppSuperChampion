@@ -109,7 +109,7 @@ def crear_lista_partidos(
                 ], spacing=6),
                 padding=10,
                 bgcolor=color_fondo,
-                border=ft.border.all(1, COLOR_BORDE),
+                border=ft.Border.all(1, COLOR_BORDE),
                 border_radius=8,
             )
         else:
@@ -213,7 +213,7 @@ def crear_lista_partidos(
                 ], spacing=6),
                 padding=10,
                 bgcolor=color_fondo,
-                border=ft.border.all(1, COLOR_CELESTE),
+                border=ft.Border.all(1, COLOR_CELESTE),
                 border_radius=8,
             )
         
@@ -258,5 +258,5 @@ def crear_lista_partidos(
         padding=12,
         bgcolor=COLOR_TARJETA,
         border_radius=10,
-        border=ft.border.all(1, COLOR_BORDE)
+        border=ft.Border.all(1, COLOR_BORDE)
     )

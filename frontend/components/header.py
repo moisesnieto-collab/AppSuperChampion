@@ -37,7 +37,7 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
                 )
             ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
             bgcolor=COLOR_TARJETA,
-            border=ft.border.all(1, COLOR_VERDE),
+            border=ft.Border.all(1, COLOR_VERDE),
             padding=8,
             border_radius=8,
         )
@@ -81,5 +81,5 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=12,
         bgcolor=COLOR_TARJETA,
-        border=ft.border.all(1, COLOR_BORDE),
+        border=ft.Border.all(1, COLOR_BORDE),
     )

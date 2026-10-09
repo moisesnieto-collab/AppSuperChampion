@@ -100,5 +100,5 @@ def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo]) ->
         padding=12,
         bgcolor=COLOR_TARJETA,
         border_radius=10,
-        border=ft.border.all(1, COLOR_BORDE),
+        border=ft.Border.all(1, COLOR_BORDE),
     )
