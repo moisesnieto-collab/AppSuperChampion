@@ -43,61 +43,71 @@ def crear_lista_partidos(
         # Modo consulta: visualización solo lectura
         if not es_organizador:
             fila_partido = ft.Container(
-                content=ft.Row([
+                content=ft.Column([
+                    # Estado del partido (arriba)
                     ft.Container(
                         content=ft.Row([
                             estado_icon,
                             ft.Text(estado_texto, size=11, color=estado_color, weight=ft.FontWeight.BOLD),
                         ], spacing=6),
-                        width=100,
+                        padding=4,
                     ),
-                    ft.Container(
-                        content=ft.Text(
-                            partido.equipo_local,
-                            size=13,
-                            weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXTO,
-                            text_align=ft.TextAlign.RIGHT
-                        ),
-                        expand=True
-                    ),
+                    # Equipos y marcador
                     ft.Container(
                         content=ft.Row([
                             ft.Container(
                                 content=ft.Text(
-                                    str(partido.goles_local),
-                                    size=18,
+                                    partido.equipo_local,
+                                    size=14,
                                     weight=ft.FontWeight.BOLD,
-                                    color=COLOR_CELESTE
+                                    color=COLOR_TEXTO,
+                                    text_align=ft.TextAlign.RIGHT,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS
                                 ),
-                                width=30
+                                expand=True
                             ),
-                            ft.Text("-", size=16, color=COLOR_SUBTEXTO),
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Container(
+                                        content=ft.Text(
+                                            str(partido.goles_local),
+                                            size=20,
+                                            weight=ft.FontWeight.BOLD,
+                                            color=COLOR_CELESTE
+                                        ),
+                                        width=35
+                                    ),
+                                    ft.Text("-", size=18, color=COLOR_SUBTEXTO),
+                                    ft.Container(
+                                        content=ft.Text(
+                                            str(partido.goles_visita),
+                                            size=20,
+                                            weight=ft.FontWeight.BOLD,
+                                            color=COLOR_CELESTE
+                                        ),
+                                        width=35
+                                    ),
+                                ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
+                                padding=10,
+                                bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                                border_radius=8,
+                            ),
                             ft.Container(
                                 content=ft.Text(
-                                    str(partido.goles_visita),
-                                    size=18,
+                                    partido.equipo_visita,
+                                    size=14,
                                     weight=ft.FontWeight.BOLD,
-                                    color=COLOR_CELESTE
+                                    color=COLOR_TEXTO,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS
                                 ),
-                                width=30
+                                expand=True
                             ),
-                        ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
-                        padding=12,
-                        bgcolor=COLOR_TARJETA_SEGUNDARIA,
-                        border_radius=8,
+                        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
                     ),
-                    ft.Container(
-                        content=ft.Text(
-                            partido.equipo_visita,
-                            size=13,
-                            weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXTO
-                        ),
-                        expand=True
-                    ),
-                ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
-                padding=12,
+                ], spacing=6),
+                padding=10,
                 bgcolor=color_fondo,
                 border=ft.border.all(1, COLOR_BORDE),
                 border_radius=8,
@@ -133,67 +143,77 @@ def crear_lista_partidos(
                 on_reiniciar_marcador(p_id)
             
             fila_partido = ft.Container(
-                content=ft.Row([
+                content=ft.Column([
+                    # Estado del partido (arriba)
                     ft.Container(
                         content=ft.Row([
                             estado_icon,
                             ft.Text(estado_texto, size=11, color=estado_color, weight=ft.FontWeight.BOLD),
                         ], spacing=6),
-                        width=100,
+                        padding=4,
                     ),
-                    ft.Container(
-                        content=ft.Text(
-                            partido.equipo_local,
-                            size=13,
-                            weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXTO,
-                            text_align=ft.TextAlign.RIGHT
-                        ),
-                        expand=True
-                    ),
+                    # Equipos y marcador
                     ft.Container(
                         content=ft.Row([
-                            tf_goles_local,
-                            ft.Text("-", size=16, color=COLOR_SUBTEXTO),
-                            tf_goles_visita,
-                        ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
-                        padding=8,
-                        bgcolor=COLOR_TARJETA_SEGUNDARIA,
-                        border_radius=8,
+                            ft.Container(
+                                content=ft.Text(
+                                    partido.equipo_local,
+                                    size=14,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=COLOR_TEXTO,
+                                    text_align=ft.TextAlign.RIGHT,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS
+                                ),
+                                expand=True
+                            ),
+                            ft.Container(
+                                content=ft.Row([
+                                    tf_goles_local,
+                                    ft.Text("-", size=18, color=COLOR_SUBTEXTO),
+                                    tf_goles_visita,
+                                ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
+                                padding=10,
+                                bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                                border_radius=8,
+                            ),
+                            ft.Container(
+                                content=ft.Text(
+                                    partido.equipo_visita,
+                                    size=14,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=COLOR_TEXTO,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS
+                                ),
+                                expand=True
+                            ),
+                        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
                     ),
+                    # Botones de acción (abajo)
                     ft.Container(
                         content=ft.Row([
                             ft.FilledButton(
-                                "💾",
+                                "💾 Guardar",
                                 bgcolor=COLOR_VERDE,
                                 color=COLOR_TEXTO,
-                                width=40,
-                                height=36,
-                                tooltip="Guardar marcador",
+                                expand=True,
                                 on_click=guardar_marcador
                             ),
                             ft.IconButton(
                                 icon=ft.Icons.REFRESH,
                                 icon_color=COLOR_ROJO,
-                                icon_size=18,
+                                icon_size=20,
                                 tooltip="Reiniciar marcador",
                                 on_click=reiniciar_marcador
                             )
-                        ], spacing=4),
+                        ], spacing=8),
+                        padding=4,
                     ),
-                    ft.Container(
-                        content=ft.Text(
-                            partido.equipo_visita,
-                            size=13,
-                            weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXTO
-                        ),
-                        expand=True
-                    ),
-                ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
-                padding=12,
+                ], spacing=6),
+                padding=10,
                 bgcolor=color_fondo,
-                border=ft.border.all(1, COLOR_CELESTE if es_organizador else COLOR_BORDE),
+                border=ft.border.all(1, COLOR_CELESTE),
                 border_radius=8,
             )
         
