@@ -66,11 +66,13 @@ class TursoCursor:
 
         # La API de Turso devuelve una lista de resultados
         if isinstance(result, list) and len(result) > 0:
-            self._results = result[0].get("response", {}).get("rows", [])
-            self._lastrowid = result[0].get("last_insert_rowid")
+            first_result = result[0]
+            self._results = first_result.get("response", {}).get("rows", [])
+            self._lastrowid = first_result.get("last_insert_rowid")
         elif isinstance(result, dict) and result.get("results"):
-            self._results = result["results"][0].get("response", {}).get("rows", [])
-            self._lastrowid = result["results"][0].get("last_insert_rowid")
+            first_result = result["results"][0]
+            self._results = first_result.get("response", {}).get("rows", [])
+            self._lastrowid = first_result.get("last_insert_rowid")
         else:
             self._results = []
 
