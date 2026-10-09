@@ -808,15 +808,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    import sys
-    host = "0.0.0.0"
-    port = 8080
-
-    # Parsear argumentos de línea de comandos
-    for i, arg in enumerate(sys.argv[1:], 1):
-        if arg == "--host" and i + 1 < len(sys.argv):
-            host = sys.argv[i + 1]
-        elif arg == "--port" and i + 1 < len(sys.argv):
-            port = int(sys.argv[i + 1])
-
-    ft.run(main, host=host, port=port)
+    ft.run(main)

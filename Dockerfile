@@ -1,26 +1,26 @@
-FROM python:3.14-slim
+FROM python:3.10-slim
 
-# Instalar Rust y dependencias necesarias para compilar libsql-experimental
 RUN apt-get update && apt-get install -y \
-    curl \
-    build-essential \
-    pkg-config \
-    libssl-dev \
+    libgstreamer1.0-0 \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Establecer directorio de trabajo
 WORKDIR /app
 
-# Copiar requirements e instalar dependencias
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el resto de la aplicación
-COPY . .
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
+COPY config/ ./config/
+COPY main.py .
 
-# Comando de inicio
-CMD ["python", "main.py", "--host", "0.0.0.0", "--port", "8080"]
+ENV PORT=8080
+EXPOSE 8080
+
+CMD ["python", "main.py"]
