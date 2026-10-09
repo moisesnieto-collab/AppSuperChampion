@@ -17,16 +17,15 @@ if not TURSO_URL or not TURSO_TOKEN:
     sys.exit(1)
 
 try:
-    import libsql_experimental as libsql
+    from turso import Client
     print("✓ Conectando a Turso...")
-    con = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
-    cursor = con.cursor()
+    client = Client(url=TURSO_URL, auth_token=TURSO_TOKEN)
     
     # Ejecutar el schema directamente
     print("✓ Creando tablas...")
     
     # Tabla Categorías
-    cursor.execute("""
+    client.execute("""
     CREATE TABLE IF NOT EXISTS categorias (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT UNIQUE NOT NULL,
@@ -35,7 +34,7 @@ try:
     """)
     
     # Tabla Jornadas
-    cursor.execute("""
+    client.execute("""
     CREATE TABLE IF NOT EXISTS jornadas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         categoria_id INTEGER NOT NULL,
@@ -47,7 +46,7 @@ try:
     """)
     
     # Tabla Grupos
-    cursor.execute("""
+    client.execute("""
     CREATE TABLE IF NOT EXISTS grupos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         categoria_id INTEGER NOT NULL,
@@ -60,7 +59,7 @@ try:
     """)
     
     # Tabla Partidos
-    cursor.execute("""
+    client.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         grupo_id INTEGER NOT NULL,
@@ -79,14 +78,12 @@ try:
     )
     """)
     
-    con.commit()
-    
     print("✓ Schema migrado exitosamente a Turso")
     print(f"✓ Base de datos: {TURSO_URL}")
     
 except ImportError as e:
-    print(f"❌ Error: libsql-experimental no está instalado: {e}")
-    print("   Ejecutar: pip install libsql-experimental")
+    print(f"❌ Error: turso no está instalado: {e}")
+    print("   Ejecutar: pip install turso")
     sys.exit(1)
 except Exception as e:
     print(f"❌ Error durante la migración: {e}")
