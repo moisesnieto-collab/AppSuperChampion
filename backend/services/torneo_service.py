@@ -284,17 +284,18 @@ class TorneoService:
 
         # Si no todos los partidos de todos los grupos están jugados, seguir en curso
         if partidos_totales_todos > 0 and partidos_completados_todos < partidos_totales_todos:
-            # Obtener punteros actuales de TODOS los grupos
-            punteros_por_grupo = []
+            # Crear tabla global combinando todos los equipos de todos los grupos
+            tabla_global = []
             for grupo_data in resultado_grupos:
                 tabla = grupo_data["tabla"]
-                grupo_nombre = grupo_data["grupo"].nombre
-                if tabla:
-                    lider = tabla[0]
-                    punteros_por_grupo.append(f"{lider.equipo} ({lider.pts} pts)")
+                for estadistica in tabla:
+                    tabla_global.append(estadistica)
             
-            # Combinar todos los punteros en un solo string
-            puntero_actual = " | ".join(punteros_por_grupo) if punteros_por_grupo else "Por definir"
+            # Ordenar tabla global por puntos, diferencia de gol, goles a favor
+            tabla_global.sort(key=lambda x: (x.pts, x.dg, x.gf), reverse=True)
+            
+            # El puntero actual es el líder de la tabla global
+            puntero_actual = tabla_global[0].equipo if tabla_global else "Por definir"
 
             return {
                 "estado": "EN_CURSO",
