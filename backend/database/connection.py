@@ -64,6 +64,11 @@ class TursoCursor:
         response.raise_for_status()
         result = response.json()
 
+        # Debug logging
+        print(f"[TURSO DEBUG] SQL: {sql[:100]}")
+        print(f"[TURSO DEBUG] Response type: {type(result)}")
+        print(f"[TURSO DEBUG] Response: {result}")
+
         # La API de Turso devuelve una lista de resultados
         if isinstance(result, list) and len(result) > 0:
             first_result = result[0]
@@ -76,6 +81,7 @@ class TursoCursor:
         else:
             self._results = []
 
+        print(f"[TURSO DEBUG] Results: {self._results}")
         return self
 
     def fetchall(self):
