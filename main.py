@@ -808,13 +808,16 @@ def main(page: ft.Page):
     actualizar_vista()
 
 
+# Export ASGI app for production deployment (Render, Docker)
+# This creates the app without running it - uvicorn will run it
+app = ft.run(main, export_asgi_app=True)
+
+
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 8080))
     try:
-        # Si estamos en Render (variable PORT definida), exportar ASGI app y usar uvicorn
+        # Si estamos en Render (variable PORT definida), usar uvicorn
         if os.environ.get("PORT"):
-            # Export ASGI app for production deployment
-            app = ft.run(main, export_asgi_app=True)
             # Run with uvicorn
             import uvicorn
             uvicorn.run(app, host="0.0.0.0", port=puerto)
