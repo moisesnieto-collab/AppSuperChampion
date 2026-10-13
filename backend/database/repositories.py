@@ -7,6 +7,10 @@ from backend.models.grupo import Grupo
 from backend.models.partido import Partido
 from backend.models.torneo import Torneo
 from backend.models.jornada import Jornada
+from backend.models.anio import Anio
+from backend.models.campeonato import Campeonato
+from backend.models.copa import Copa
+from backend.models.campeonato_permiso import CampeonatoPermiso
 
 
 class TorneoRepository:
@@ -14,11 +18,25 @@ class TorneoRepository:
     def obtener_todos() -> List[Torneo]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin FROM torneos ORDER BY orden ASC, anio DESC, id DESC")
+        cursor.execute("SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos ORDER BY orden ASC, id DESC")
         rows = cursor.fetchall()
         return [
             Torneo(
-                id=r[0], nombre=r[1], tipo=r[2], anio=r[3], orden=r[4],
+                id=r[0], nombre=r[1], tipo=r[2], copa_id=r[3], orden=r[4],
+                activo=bool(r[5]), fecha_inicio=r[6], fecha_fin=r[7]
+            )
+            for r in rows
+        ]
+
+    @staticmethod
+    def obtener_por_copa(copa_id: int) -> List[Torneo]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE copa_id = ? ORDER BY orden ASC, id DESC", (copa_id,))
+        rows = cursor.fetchall()
+        return [
+            Torneo(
+                id=r[0], nombre=r[1], tipo=r[2], copa_id=r[3], orden=r[4],
                 activo=bool(r[5]), fecha_inicio=r[6], fecha_fin=r[7]
             )
             for r in rows
@@ -29,13 +47,13 @@ class TorneoRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE id = ?",
+            "SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE id = ?",
             (torneo_id,)
         )
         row = cursor.fetchone()
         if row:
             return Torneo(
-                id=row[0], nombre=row[1], tipo=row[2], anio=row[3], orden=row[4],
+                id=row[0], nombre=row[1], tipo=row[2], copa_id=row[3], orden=row[4],
                 activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7]
             )
         return None
@@ -45,23 +63,23 @@ class TorneoRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE activo = 1 ORDER BY orden ASC, anio DESC, id DESC LIMIT 1"
+            "SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE activo = 1 ORDER BY orden ASC, id DESC LIMIT 1"
         )
         row = cursor.fetchone()
         if row:
             return Torneo(
-                id=row[0], nombre=row[1], tipo=row[2], anio=row[3], orden=row[4],
+                id=row[0], nombre=row[1], tipo=row[2], copa_id=row[3], orden=row[4],
                 activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7]
             )
         return None
 
     @staticmethod
-    def crear(nombre: str, tipo: str, anio: int, orden: int = 0, activo: bool = True, fecha_inicio: str = None, fecha_fin: str = None) -> int:
+    def crear(nombre: str, tipo: str, copa_id: int, orden: int = 0, activo: bool = True, fecha_inicio: str = None, fecha_fin: str = None) -> int:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "INSERT INTO torneos (nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (nombre, tipo, anio, orden, 1 if activo else 0, fecha_inicio, fecha_fin)
+            "INSERT INTO torneos (nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (nombre, tipo, copa_id, orden, 1 if activo else 0, fecha_inicio, fecha_fin)
         )
         con.commit()
         return cursor.lastrowid
@@ -100,12 +118,12 @@ class JornadaRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, torneo_id, fecha, nombre, orden FROM jornadas WHERE torneo_id = ? ORDER BY fecha ASC, orden ASC",
+            "SELECT id, torneo_id, fecha, nombre, orden, lugar, horario FROM jornadas WHERE torneo_id = ? ORDER BY fecha ASC, orden ASC",
             (torneo_id,)
         )
         rows = cursor.fetchall()
         return [
-            Jornada(id=r[0], torneo_id=r[1], fecha=r[2], nombre=r[3], orden=r[4])
+            Jornada(id=r[0], torneo_id=r[1], fecha=r[2], nombre=r[3], orden=r[4], lugar=r[5], horario=r[6])
             for r in rows
         ]
 
@@ -114,32 +132,32 @@ class JornadaRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, torneo_id, fecha, nombre, orden FROM jornadas WHERE id = ?",
+            "SELECT id, torneo_id, fecha, nombre, orden, lugar, horario FROM jornadas WHERE id = ?",
             (jornada_id,)
         )
         row = cursor.fetchone()
         if row:
-            return Jornada(id=row[0], torneo_id=row[1], fecha=row[2], nombre=row[3], orden=row[4])
+            return Jornada(id=row[0], torneo_id=row[1], fecha=row[2], nombre=row[3], orden=row[4], lugar=row[5], horario=row[6])
         return None
 
     @staticmethod
-    def crear(torneo_id: int, fecha: str, nombre: str, orden: int) -> int:
+    def crear(torneo_id: int, fecha: str, nombre: str, orden: int, lugar: str = None, horario: str = None) -> int:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "INSERT INTO jornadas (torneo_id, fecha, nombre, orden) VALUES (?, ?, ?, ?)",
-            (torneo_id, fecha, nombre, orden)
+            "INSERT INTO jornadas (torneo_id, fecha, nombre, orden, lugar, horario) VALUES (?, ?, ?, ?, ?, ?)",
+            (torneo_id, fecha, nombre, orden, lugar, horario)
         )
         con.commit()
         return cursor.lastrowid
 
     @staticmethod
-    def actualizar(jornada_id: int, fecha: str, nombre: str):
+    def actualizar(jornada_id: int, fecha: str, nombre: str, lugar: str = None, horario: str = None):
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "UPDATE jornadas SET fecha = ?, nombre = ? WHERE id = ?",
-            (fecha, nombre, jornada_id)
+            "UPDATE jornadas SET fecha = ?, nombre = ?, lugar = ?, horario = ? WHERE id = ?",
+            (fecha, nombre, lugar, horario, jornada_id)
         )
         con.commit()
 
@@ -155,12 +173,12 @@ class JornadaRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, torneo_id, fecha, nombre, orden FROM jornadas WHERE torneo_id = ? AND fecha = ?",
+            "SELECT id, torneo_id, fecha, nombre, orden, lugar, horario FROM jornadas WHERE torneo_id = ? AND fecha = ?",
             (torneo_id, fecha)
         )
         row = cursor.fetchone()
         if row:
-            return Jornada(id=row[0], torneo_id=row[1], fecha=row[2], nombre=row[3], orden=row[4])
+            return Jornada(id=row[0], torneo_id=row[1], fecha=row[2], nombre=row[3], orden=row[4], lugar=row[5], horario=row[6])
         return None
 
 
@@ -410,3 +428,260 @@ class ConfiguracionRepository:
             ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor
         """, (nuevo_pin,))
         con.commit()
+
+
+class AnioRepository:
+    @staticmethod
+    def obtener_todos() -> List[Anio]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, valor, orden, activo FROM anios ORDER BY orden ASC, valor DESC")
+        rows = cursor.fetchall()
+        return [Anio(id=r[0], valor=r[1], orden=r[2], activo=bool(r[3])) for r in rows]
+
+    @staticmethod
+    def obtener_por_id(anio_id: int) -> Optional[Anio]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, valor, orden, activo FROM anios WHERE id = ?", (anio_id,))
+        row = cursor.fetchone()
+        if row:
+            return Anio(id=row[0], valor=row[1], orden=row[2], activo=bool(row[3]))
+        return None
+
+    @staticmethod
+    def obtener_activo() -> Optional[Anio]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, valor, orden, activo FROM anios WHERE activo = 1 ORDER BY orden ASC, valor DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            return Anio(id=row[0], valor=row[1], orden=row[2], activo=bool(row[3]))
+        return None
+
+    @staticmethod
+    def crear(valor: int, orden: int = 0, activo: bool = True) -> int:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("INSERT INTO anios (valor, orden, activo) VALUES (?, ?, ?)", (valor, orden, 1 if activo else 0))
+        con.commit()
+        return cursor.lastrowid
+
+    @staticmethod
+    def actualizar_activo(anio_id: int, activo: bool):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE anios SET activo = ? WHERE id = ?", (1 if activo else 0, anio_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar_orden(anio_id: int, orden: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE anios SET orden = ? WHERE id = ?", (orden, anio_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar(anio_id: int, valor: int, orden: int = 0, activo: bool = True):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE anios SET valor = ?, orden = ?, activo = ? WHERE id = ?", (valor, orden, 1 if activo else 0, anio_id))
+        con.commit()
+
+    @staticmethod
+    def eliminar(anio_id: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("DELETE FROM anios WHERE id = ?", (anio_id,))
+        con.commit()
+
+
+class CampeonatoRepository:
+    @staticmethod
+    def obtener_todos() -> List[Campeonato]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, anio_id, orden, activo FROM campeonatos ORDER BY orden ASC, id DESC")
+        rows = cursor.fetchall()
+        return [Campeonato(id=r[0], nombre=r[1], anio_id=r[2], orden=r[3], activo=bool(r[4])) for r in rows]
+
+    @staticmethod
+    def obtener_por_id(campeonato_id: int) -> Optional[Campeonato]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, anio_id, orden, activo FROM campeonatos WHERE id = ?", (campeonato_id,))
+        row = cursor.fetchone()
+        if row:
+            return Campeonato(id=row[0], nombre=row[1], anio_id=row[2], orden=row[3], activo=bool(row[4]))
+        return None
+
+    @staticmethod
+    def obtener_por_anio(anio_id: int) -> List[Campeonato]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, anio_id, orden, activo FROM campeonatos WHERE anio_id = ? ORDER BY orden ASC, id DESC", (anio_id,))
+        rows = cursor.fetchall()
+        return [Campeonato(id=r[0], nombre=r[1], anio_id=r[2], orden=r[3], activo=bool(r[4])) for r in rows]
+
+    @staticmethod
+    def obtener_activo() -> Optional[Campeonato]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, anio_id, orden, activo FROM campeonatos WHERE activo = 1 ORDER BY orden ASC, id DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            return Campeonato(id=row[0], nombre=row[1], anio_id=row[2], orden=row[3], activo=bool(row[4]))
+        return None
+
+    @staticmethod
+    def crear(nombre: str, anio_id: int, orden: int = 0, activo: bool = True) -> int:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("INSERT INTO campeonatos (nombre, anio_id, orden, activo) VALUES (?, ?, ?, ?)", (nombre, anio_id, orden, 1 if activo else 0))
+        con.commit()
+        return cursor.lastrowid
+
+    @staticmethod
+    def actualizar_activo(campeonato_id: int, activo: bool):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE campeonatos SET activo = ? WHERE id = ?", (1 if activo else 0, campeonato_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar_orden(campeonato_id: int, orden: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE campeonatos SET orden = ? WHERE id = ?", (orden, campeonato_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar(campeonato_id: int, nombre: str, anio_id: int, orden: int = 0, activo: bool = True):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE campeonatos SET nombre = ?, anio_id = ?, orden = ?, activo = ? WHERE id = ?", (nombre, anio_id, orden, 1 if activo else 0, campeonato_id))
+        con.commit()
+
+    @staticmethod
+    def eliminar(campeonato_id: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("DELETE FROM campeonatos WHERE id = ?", (campeonato_id,))
+        con.commit()
+
+
+class CopaRepository:
+    @staticmethod
+    def obtener_todos() -> List[Copa]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas ORDER BY orden ASC, id DESC")
+        rows = cursor.fetchall()
+        return [Copa(id=r[0], nombre=r[1], campeonato_id=r[2], orden=r[3], activo=bool(r[4]), color=r[5]) for r in rows]
+
+    @staticmethod
+    def obtener_por_id(copa_id: int) -> Optional[Copa]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas WHERE id = ?", (copa_id,))
+        row = cursor.fetchone()
+        if row:
+            return Copa(id=row[0], nombre=row[1], campeonato_id=row[2], orden=row[3], activo=bool(row[4]), color=row[5])
+        return None
+
+    @staticmethod
+    def obtener_por_campeonato(campeonato_id: int) -> List[Copa]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas WHERE campeonato_id = ? ORDER BY orden ASC, id DESC", (campeonato_id,))
+        rows = cursor.fetchall()
+        return [Copa(id=r[0], nombre=r[1], campeonato_id=r[2], orden=r[3], activo=bool(r[4]), color=r[5]) for r in rows]
+
+    @staticmethod
+    def obtener_activo() -> Optional[Copa]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas WHERE activo = 1 ORDER BY orden ASC, id DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            return Copa(id=row[0], nombre=row[1], campeonato_id=row[2], orden=row[3], activo=bool(row[4]), color=row[5])
+        return None
+
+    @staticmethod
+    def crear(nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None) -> int:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("INSERT INTO copas (nombre, campeonato_id, orden, activo, color) VALUES (?, ?, ?, ?, ?)", (nombre, campeonato_id, orden, 1 if activo else 0, color))
+        con.commit()
+        return cursor.lastrowid
+
+    @staticmethod
+    def actualizar_activo(copa_id: int, activo: bool):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE copas SET activo = ? WHERE id = ?", (1 if activo else 0, copa_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar_orden(copa_id: int, orden: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE copas SET orden = ? WHERE id = ?", (orden, copa_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar(copa_id: int, nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE copas SET nombre = ?, campeonato_id = ?, orden = ?, activo = ?, color = ? WHERE id = ?", (nombre, campeonato_id, orden, 1 if activo else 0, color, copa_id))
+        con.commit()
+
+    @staticmethod
+    def eliminar(copa_id: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("DELETE FROM copas WHERE id = ?", (copa_id,))
+        con.commit()
+
+
+class CampeonatoPermisoRepository:
+    @staticmethod
+    def obtener_por_campeonato(campeonato_id: int) -> List[CampeonatoPermiso]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, campeonato_id, usuario_id, rol, fecha_asignacion FROM campeonato_permisos WHERE campeonato_id = ?", (campeonato_id,))
+        rows = cursor.fetchall()
+        return [CampeonatoPermiso(id=r[0], campeonato_id=r[1], usuario_id=r[2], rol=r[3], fecha_asignacion=r[4]) for r in rows]
+
+    @staticmethod
+    def obtener_por_usuario(usuario_id: int) -> List[CampeonatoPermiso]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT id, campeonato_id, usuario_id, rol, fecha_asignacion FROM campeonato_permisos WHERE usuario_id = ?", (usuario_id,))
+        rows = cursor.fetchall()
+        return [CampeonatoPermiso(id=r[0], campeonato_id=r[1], usuario_id=r[2], rol=r[3], fecha_asignacion=r[4]) for r in rows]
+
+    @staticmethod
+    def asignar_permiso(campeonato_id: int, usuario_id: int, rol: str) -> int:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("INSERT INTO campeonato_permisos (campeonato_id, usuario_id, rol) VALUES (?, ?, ?)", (campeonato_id, usuario_id, rol))
+        con.commit()
+        return cursor.lastrowid
+
+    @staticmethod
+    def revocar_permiso(campeonato_id: int, usuario_id: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("DELETE FROM campeonato_permisos WHERE campeonato_id = ? AND usuario_id = ?", (campeonato_id, usuario_id))
+        con.commit()
+
+    @staticmethod
+    def verificar_permiso(campeonato_id: int, usuario_id: int) -> Optional[str]:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT rol FROM campeonato_permisos WHERE campeonato_id = ? AND usuario_id = ?", (campeonato_id, usuario_id))
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        return None

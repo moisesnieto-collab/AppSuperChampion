@@ -7,7 +7,7 @@ class Torneo:
     id: int
     nombre: str
     tipo: str  # "Apertura" o "Clausura"
-    anio: int
+    copa_id: int  # Foreign key a copas
     orden: int = 0
     activo: bool = True
     fecha_inicio: str = None
@@ -18,7 +18,7 @@ class Torneo:
             "id": self.id,
             "nombre": self.nombre,
             "tipo": self.tipo,
-            "anio": self.anio,
+            "copa_id": self.copa_id,
             "orden": self.orden,
             "activo": self.activo,
             "fecha_inicio": self.fecha_inicio,
@@ -31,7 +31,7 @@ class Torneo:
             id=data.get("id", 0),
             nombre=data.get("nombre", ""),
             tipo=data.get("tipo", ""),
-            anio=data.get("anio", datetime.now().year),
+            copa_id=data.get("copa_id", 0),
             orden=data.get("orden", 0),
             activo=bool(data.get("activo", True)),
             fecha_inicio=data.get("fecha_inicio"),

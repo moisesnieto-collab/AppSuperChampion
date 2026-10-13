@@ -3,13 +3,20 @@ from typing import List, Callable, Optional
 from datetime import datetime
 from config.constants import (
     COLOR_TARJETA, COLOR_BORDE, COLOR_CELESTE, COLOR_CELESTE_BOTON,
-    COLOR_TEXTO, COLOR_SUBTEXTO, COLOR_VERDE, COLOR_AMBAR, COLOR_ROJO, COLOR_TARJETA_SEGUNDARIA
+    COLOR_TEXTO, COLOR_SUBTEXTO, COLOR_VERDE, COLOR_AMBAR, COLOR_ROJO, COLOR_TARJETA_SEGUNDARIA, COLOR_FONDO
 )
 from backend.models.categoria import Categoria
 from backend.models.torneo import Torneo
 from backend.models.jornada import Jornada
+from backend.models.anio import Anio
+from backend.models.campeonato import Campeonato
+from backend.models.copa import Copa
 from backend.services.torneo_service import TorneoService
-from backend.database.repositories import JornadaRepository
+from backend.services.anio_service import AnioService
+from backend.services.campeonato_service import CampeonatoService
+from backend.services.copa_service import CopaService
+from backend.database.repositories import JornadaRepository, GrupoRepository
+from config.preferencias import guardar_ultima_seleccion, borrar_ultima_seleccion
 
 def crear_selector_categoria_y_dia(
     estado: dict,
@@ -22,17 +29,107 @@ def crear_selector_categoria_y_dia(
     on_eliminar_grupo: Callable = None,
     on_crear_jornada: Callable = None,
     on_eliminar_jornada: Callable = None,
-    on_buscar_jornada: Callable = None
+    on_buscar_jornada: Callable = None,
+    anios: List[Anio] = None,
+    campeonatos: List[Campeonato] = None,
+    copas: List[Copa] = None,
+    vista: str = "campeonato"
 ) -> ft.Container:
     """
-    Barra superior con botones interactivos de Torneo, Jornada, Categoría y Grupos.
-    Nueva jerarquía: Torneo -> Jornada -> Categoría -> Grupo
+    Barra superior con botones	interactivos de Año, Campeonato, Copa, Torneo, Jornada, Categoría y Grupos.
+    Nueva jerarquía: Año -> Campeonato -> Copa -> Torneo -> Jornada -> Categoría -> Grupo
     """
+    if anios is None:
+        anios = AnioService.obtener_anios()
+    if campeonatos is None:
+        campeonatos = CampeonatoService.obtener_campeonatos()
+    if copas is None:
+        copas = CopaService.obtener_copas()
+    
+    anio_activo_id = estado.get("anio_activo_id")
+    campeonato_activo_id = estado.get("campeonato_activo_id")
+    copa_activa_id = estado.get("copa_activa_id")
     torneo_activo_id = estado.get("torneo_activo_id")
     jornada_activa_id = estado.get("jornada_activa_id")
     cat_activa_id = estado.get("categoria_activa_id")
     grupo_filtro = estado.get("grupo_filtro", "Todos")
-    es_organizador = estado.get("es_organizador", False)
+    # Las herramientas de edición solo aparecen con PIN y modo "Administrar" activo
+    es_organizador = bool(estado.get("es_organizador", False) and estado.get("modo_admin", False))
+
+    # Selector de Año
+    def seleccionar_anio(anio_id: int):
+        estado["anio_activo_id"] = anio_id
+        estado["campeonato_activo_id"] = None
+        estado["copa_activa_id"] = None
+        estado["torneo_activo_id"] = None
+        estado["jornada_activa_id"] = None
+        estado["categoria_activa_id"] = None
+        # Cargar campeonatos del año seleccionado
+        campeonatos_nuevos = CampeonatoService.obtener_campeonatos_por_anio(anio_id)
+        if campeonatos_nuevos:
+            estado["campeonato_activo_id"] = campeonatos_nuevos[0].id
+            # Cargar copas del campeonato
+            copas_nuevas = CopaService.obtener_copas_por_campeonato(campeonatos_nuevos[0].id)
+            if copas_nuevas:
+                estado["copa_activa_id"] = copas_nuevas[0].id
+                # Cargar torneos de la copa
+                from backend.database.repositories import TorneoRepository
+                torneos_nuevos = TorneoRepository.obtener_por_copa(copas_nuevas[0].id)
+                if torneos_nuevos:
+                    estado["torneo_activo_id"] = torneos_nuevos[0].id
+                    # Cargar primera jornada
+                    jornadas = TorneoService.obtener_jornadas_por_torneo(torneos_nuevos[0].id)
+                    if jornadas:
+                        estado["jornada_activa_id"] = jornadas[0].id
+                        categorias_jornada = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
+                        if categorias_jornada:
+                            estado["categoria_activa_id"] = categorias_jornada[0].id
+        on_cambio_seleccion()
+
+    # Selector de Campeonato
+    def seleccionar_campeonato(campeonato_id: int):
+        estado["campeonato_activo_id"] = campeonato_id
+        estado["copa_activa_id"] = None
+        estado["torneo_activo_id"] = None
+        estado["jornada_activa_id"] = None
+        estado["categoria_activa_id"] = None
+        # Cargar copas del campeonato seleccionado
+        copas_nuevas = CopaService.obtener_copas_por_campeonato(campeonato_id)
+        if copas_nuevas:
+            estado["copa_activa_id"] = copas_nuevas[0].id
+            # Cargar torneos de la copa
+            from backend.database.repositories import TorneoRepository
+            torneos_nuevos = TorneoRepository.obtener_por_copa(copas_nuevas[0].id)
+            if torneos_nuevos:
+                estado["torneo_activo_id"] = torneos_nuevos[0].id
+                # Cargar primera jornada
+                jornadas = TorneoService.obtener_jornadas_por_torneo(torneos_nuevos[0].id)
+                if jornadas:
+                    estado["jornada_activa_id"] = jornadas[0].id
+                    categorias_jornada = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
+                    if categorias_jornada:
+                        estado["categoria_activa_id"] = categorias_jornada[0].id
+        on_cambio_seleccion()
+
+    # Selector de Copa
+    def seleccionar_copa(copa_id: int):
+        estado["copa_activa_id"] = copa_id
+        estado["torneo_activo_id"] = None
+        estado["jornada_activa_id"] = None
+        estado["categoria_activa_id"] = None
+        # Cargar torneos de la copa seleccionada
+        from backend.database.repositories import TorneoRepository
+        torneos_nuevos = TorneoRepository.obtener_por_copa(copa_id)
+        if torneos_nuevos:
+            estado["torneo_activo_id"] = torneos_nuevos[0].id
+            # Cargar primera jornada
+            jornadas = TorneoService.obtener_jornadas_por_torneo(torneos_nuevos[0].id)
+            if jornadas:
+                estado["jornada_activa_id"] = jornadas[0].id
+                categorias_jornada = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
+                if categorias_jornada:
+                    estado["categoria_activa_id"] = categorias_jornada[0].id
+        on_cambio_seleccion()
 
     # Botones de Torneos
     def seleccionar_torneo(torneo_id: int):
@@ -53,6 +150,9 @@ def crear_selector_categoria_y_dia(
         on_cambio_seleccion()
 
     def abrir_modal_nuevo_torneo(e):
+        if not copa_activa_id:
+            _snack("❌ Debe seleccionar una copa primero", COLOR_ROJO)
+            return
         tf_nombre = ft.TextField(
             label="Nombre del Torneo (ej: Copa Colegio 2024)",
             autofocus=True,
@@ -60,11 +160,6 @@ def crear_selector_categoria_y_dia(
         tf_tipo = ft.TextField(
             label="Tipo (ej: Copa, Liga)",
             value="Copa",
-        )
-        tf_anio = ft.TextField(
-            label="Año",
-            value=str(datetime.now().year),
-            input_filter=ft.NumbersOnlyInputFilter(),
         )
         tf_orden = ft.TextField(
             label="Orden de presentación (0 para el último)",
@@ -76,18 +171,16 @@ def crear_selector_categoria_y_dia(
         def guardar_torneo(ev):
             nom = tf_nombre.value.strip()
             tipo = tf_tipo.value.strip()
-            anio_str = tf_anio.value.strip()
             orden_str = tf_orden.value.strip()
             
-            if not nom or not tipo or not anio_str:
+            if not nom or not tipo:
                 texto_error.value = "❌ Todos los campos son obligatorios"
                 page.update()
                 return
             
             try:
-                anio = int(anio_str)
                 orden = int(orden_str) if orden_str else 0
-                nuevo_id = TorneoService.crear_torneo(nom, tipo, anio, orden, es_organizador=True)
+                nuevo_id = TorneoService.crear_torneo(nom, tipo, copa_activa_id, orden, es_organizador=True)
                 estado["torneo_activo_id"] = nuevo_id
                 estado["jornada_activa_id"] = None
                 estado["categoria_activa_id"] = None
@@ -112,7 +205,6 @@ def crear_selector_categoria_y_dia(
                 ft.Text("Crea un nuevo torneo."),
                 tf_nombre,
                 tf_tipo,
-                tf_anio,
                 tf_orden,
                 texto_error,
             ], spacing=10, tight=True, width=340),
@@ -225,6 +317,404 @@ def crear_selector_categoria_y_dia(
             page.overlay.append(dlg_editar_orden)
         dlg_editar_orden.open = True
         page.update()
+
+    # ---- CRUD genérico para Año / Campeonato / Copa ----
+    def _snack(msg: str, color):
+        page.snack_bar = ft.SnackBar(content=ft.Text(msg), bgcolor=color)
+        page.snack_bar.open = True
+        page.update()
+
+    def _abrir_dialogo(dlg):
+        if dlg not in page.overlay:
+            page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
+
+    def _modal_formulario(titulo, campos, on_guardar, texto_boton):
+        texto_error = ft.Text("", color=COLOR_ROJO, size=12)
+
+        def guardar(ev):
+            try:
+                on_guardar()
+                dlg.open = False
+                on_cambio_seleccion()
+            except Exception as err:
+                texto_error.value = f"❌ {str(err)}"
+                page.update()
+
+        dlg = ft.AlertDialog(
+            title=ft.Row([
+                ft.Icon(ft.Icons.ADD_CIRCLE, color=COLOR_VERDE, size=22),
+                ft.Text(titulo, weight=ft.FontWeight.BOLD, size=16),
+            ]),
+            content=ft.Column(campos + [texto_error], spacing=10, tight=True, width=340),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda ev: (setattr(dlg, 'open', False), page.update())),
+                ft.FilledButton(texto_boton, bgcolor=COLOR_VERDE, color=COLOR_TEXTO, on_click=guardar),
+            ],
+            bgcolor=COLOR_TARJETA,
+        )
+        _abrir_dialogo(dlg)
+
+    def _modal_eliminar(titulo, mensaje, on_confirmar):
+        def confirmar(ev):
+            try:
+                on_confirmar()
+                dlg.open = False
+                on_cambio_seleccion()
+                _snack("✅ Eliminado exitosamente.", COLOR_VERDE)
+            except Exception as err:
+                dlg.open = False
+                _snack(f"❌ {str(err)}", COLOR_ROJO)
+
+        dlg = ft.AlertDialog(
+            title=ft.Row([
+                ft.Icon(ft.Icons.WARNING, color=COLOR_AMBAR, size=22),
+                ft.Text(titulo, weight=ft.FontWeight.BOLD, size=16),
+            ]),
+            content=ft.Text(mensaje),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda ev: (setattr(dlg, 'open', False), page.update())),
+                ft.FilledButton("Eliminar", bgcolor=COLOR_ROJO, color=COLOR_TEXTO, on_click=confirmar),
+            ],
+            bgcolor=COLOR_TARJETA,
+        )
+        _abrir_dialogo(dlg)
+
+    # Año
+    def modal_anio(anio=None):
+        tf_valor = ft.TextField(
+            label="Año", value=str(anio.valor if anio else datetime.now().year),
+            input_filter=ft.NumbersOnlyInputFilter(), autofocus=True,
+        )
+
+        def guardar():
+            valor = int(tf_valor.value.strip())
+            if anio:
+                from backend.database.repositories import AnioRepository
+                AnioRepository.actualizar(anio.id, valor, anio.orden, anio.activo)
+            else:
+                nuevo_id = AnioService.crear_anio(valor)
+                estado["anio_activo_id"] = nuevo_id
+                estado["campeonato_activo_id"] = None
+                estado["copa_activa_id"] = None
+                estado["torneo_activo_id"] = None
+                estado["jornada_activa_id"] = None
+                estado["categoria_activa_id"] = None
+
+        _modal_formulario("Editar Año" if anio else "Nuevo Año", [tf_valor], guardar, "Guardar" if anio else "Crear")
+
+    def eliminar_anio(anio):
+        def op():
+            AnioService.eliminar_anio(anio.id)
+            estado["pantalla"] = "inicio"
+            borrar_ultima_seleccion()
+            estado["anio_activo_id"] = None
+            estado["campeonato_activo_id"] = None
+            estado["copa_activa_id"] = None
+            estado["torneo_activo_id"] = None
+            estado["jornada_activa_id"] = None
+            estado["categoria_activa_id"] = None
+        _modal_eliminar("Eliminar Año", f"¿Eliminar el año {anio.valor}? Solo es posible si no tiene campeonatos asociados.", op)
+
+    # Campeonato
+    def modal_campeonato(camp=None):
+        tf_nombre = ft.TextField(label="Nombre del Campeonato", value=camp.nombre if camp else "", autofocus=True)
+        dd_anio = ft.Dropdown(
+            label="Año",
+            options=[ft.dropdown.Option(key=str(a.id), text=str(a.valor)) for a in anios],
+            value=str(camp.anio_id if camp else anio_activo_id) if (camp or anio_activo_id) else None,
+        )
+
+        def guardar():
+            nombre = tf_nombre.value.strip()
+            if not nombre:
+                raise ValueError("El nombre es obligatorio")
+            if not dd_anio.value:
+                raise ValueError("Debe seleccionar un año")
+            if camp:
+                from backend.database.repositories import CampeonatoRepository
+                CampeonatoRepository.actualizar(camp.id, nombre, int(dd_anio.value), camp.orden, camp.activo)
+            else:
+                estado["anio_activo_id"] = int(dd_anio.value)
+                nuevo_id = CampeonatoService.crear_campeonato(nombre, int(dd_anio.value))
+                estado["campeonato_activo_id"] = nuevo_id
+                estado["copa_activa_id"] = None
+                estado["torneo_activo_id"] = None
+                estado["jornada_activa_id"] = None
+                estado["categoria_activa_id"] = None
+
+        _modal_formulario("Editar Campeonato" if camp else "Nuevo Campeonato", [tf_nombre, dd_anio], guardar, "Guardar" if camp else "Crear")
+
+    def eliminar_campeonato(camp):
+        def op():
+            CampeonatoService.eliminar_campeonato(camp.id)
+            estado["pantalla"] = "inicio"
+            borrar_ultima_seleccion()
+            estado["campeonato_activo_id"] = None
+            estado["copa_activa_id"] = None
+            estado["torneo_activo_id"] = None
+            estado["jornada_activa_id"] = None
+            estado["categoria_activa_id"] = None
+        _modal_eliminar("Eliminar Campeonato", f"¿Eliminar el campeonato '{camp.nombre}'? Solo es posible si no tiene copas asociadas.", op)
+
+    # Copa
+    PALETA_COPA = ["#0A0E17", "#1E3A8A", "#065F46", "#7F1D1D", "#581C87", "#92400E", "#134E4A", "#831843", "#3F3F46", "#9A3412",
+                   "#1F4E9E", "#1D6B43", "#0066D6", "#3B4FB0", "#8C1A5C"]
+
+    def modal_copa(copa=None):
+        color_sel = {"v": (copa.color if copa and copa.color else PALETA_COPA[0])}
+        fila_colores = ft.Row(wrap=True, spacing=6, run_spacing=6)
+
+        def pintar_paleta():
+            fila_colores.controls = [
+                ft.Container(
+                    width=32, height=32, border_radius=16, bgcolor=col,
+                    border=ft.Border.all(3 if col == color_sel["v"] else 1, COLOR_TEXTO if col == color_sel["v"] else COLOR_BORDE),
+                    on_click=lambda ev, col=col: elegir_color(col), ink=True,
+                ) for col in PALETA_COPA
+            ]
+
+        def elegir_color(col):
+            color_sel["v"] = col
+            pintar_paleta()
+            page.update()
+
+        pintar_paleta()
+        tf_nombre = ft.TextField(label="Nombre de la Copa", value=copa.nombre if copa else "", autofocus=True)
+        dd_camp = ft.Dropdown(
+            label="Campeonato",
+            options=[ft.dropdown.Option(key=str(c.id), text=c.nombre) for c in campeonatos],
+            value=str(copa.campeonato_id if copa else campeonato_activo_id) if (copa or campeonato_activo_id) else None,
+        )
+
+        def guardar():
+            nombre = tf_nombre.value.strip()
+            if not nombre:
+                raise ValueError("El nombre es obligatorio")
+            if not dd_camp.value:
+                raise ValueError("Debe seleccionar un campeonato")
+            if copa:
+                from backend.database.repositories import CopaRepository
+                CopaRepository.actualizar(copa.id, nombre, int(dd_camp.value), copa.orden, copa.activo, color_sel["v"])
+            else:
+                estado["campeonato_activo_id"] = int(dd_camp.value)
+                nuevo_id = CopaService.crear_copa(nombre, int(dd_camp.value), color=color_sel["v"])
+                estado["copa_activa_id"] = nuevo_id
+                estado["torneo_activo_id"] = None
+                estado["jornada_activa_id"] = None
+                estado["categoria_activa_id"] = None
+
+        _modal_formulario("Editar Copa" if copa else "Nueva Copa", [tf_nombre, dd_camp, ft.Text("Color de la copa", size=12, color=COLOR_SUBTEXTO), fila_colores], guardar, "Guardar" if copa else "Crear")
+
+    def eliminar_copa(copa):
+        def op():
+            CopaService.eliminar_copa(copa.id)
+            estado["copa_activa_id"] = None
+            estado["torneo_activo_id"] = None
+            estado["jornada_activa_id"] = None
+            estado["categoria_activa_id"] = None
+        _modal_eliminar("Eliminar Copa", f"¿Eliminar la copa '{copa.nombre}'? Solo es posible si no tiene torneos asociados.", op)
+
+    def _chip_jerarquia(texto, es_activo_, on_select, on_edit=None, on_delete=None):
+        color_txt = COLOR_TEXTO if es_activo_ else COLOR_SUBTEXTO
+        fila = [ft.Text(texto, size=12, color=color_txt,
+                        weight=ft.FontWeight.BOLD if es_activo_ else ft.FontWeight.NORMAL)]
+        if es_organizador and on_edit:
+            fila.append(ft.IconButton(icon=ft.Icons.EDIT, icon_color=COLOR_CELESTE, icon_size=14,
+                                      tooltip="Editar", on_click=lambda ev: on_edit()))
+        if es_organizador and on_delete:
+            fila.append(ft.IconButton(icon=ft.Icons.DELETE, icon_color=COLOR_ROJO, icon_size=14,
+                                      tooltip="Eliminar", on_click=lambda ev: on_delete()))
+        return ft.Container(
+            content=ft.Row(fila, spacing=4, tight=True),
+            bgcolor=COLOR_CELESTE_BOTON if es_activo_ else COLOR_TARJETA_SEGUNDARIA,
+            border=ft.Border.all(1, COLOR_CELESTE if es_activo_ else COLOR_BORDE),
+            border_radius=8,
+            padding=8,
+            on_click=lambda ev: on_select(),
+            ink=True,
+        )
+
+    def _chip_nuevo(texto, on_click):
+        return ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ADD, size=14, color=COLOR_VERDE),
+                ft.Text(texto, size=11, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
+            ], spacing=4),
+            bgcolor=COLOR_TARJETA_SEGUNDARIA,
+            border=ft.Border.all(1, COLOR_VERDE),
+            border_radius=8,
+            padding=10,
+            on_click=lambda ev: on_click(),
+            ink=True,
+        )
+
+    def _chip_eliminar(texto, on_click):
+        return ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.DELETE, size=14, color=COLOR_ROJO),
+                ft.Text(texto, size=11, color=COLOR_ROJO, weight=ft.FontWeight.BOLD),
+            ], spacing=4),
+            bgcolor=COLOR_TARJETA_SEGUNDARIA,
+            border=ft.Border.all(1, COLOR_ROJO),
+            border_radius=8,
+            padding=10,
+            on_click=lambda ev: on_click(),
+            ink=True,
+        )
+
+    # ---- Permisos por campeonato ----
+    def modal_permisos():
+        if not campeonato_activo_id:
+            _snack("❌ Debe seleccionar un campeonato primero", COLOR_ROJO)
+            return
+        col_lista = ft.Column(spacing=4, tight=True)
+        tf_usuario = ft.TextField(label="ID de usuario", input_filter=ft.NumbersOnlyInputFilter())
+        dd_rol = ft.Dropdown(
+            label="Rol",
+            options=[ft.dropdown.Option(key="organizador", text="Organizador"),
+                     ft.dropdown.Option(key="master", text="Master")],
+            value="organizador",
+        )
+        texto_error = ft.Text("", color=COLOR_ROJO, size=12)
+
+        def refrescar():
+            col_lista.controls.clear()
+            permisos = CampeonatoService.obtener_permisos_campeonato(campeonato_activo_id)
+            if not permisos:
+                col_lista.controls.append(ft.Text("Sin usuarios asignados", size=12, color=COLOR_SUBTEXTO))
+            for p in permisos:
+                col_lista.controls.append(ft.Row([
+                    ft.Text(f"Usuario {p.usuario_id} — {p.rol}", size=12, color=COLOR_TEXTO, expand=True),
+                    ft.IconButton(icon=ft.Icons.DELETE, icon_color=COLOR_ROJO, icon_size=16, tooltip="Revocar",
+                                  on_click=lambda ev, uid=p.usuario_id: revocar(uid)),
+                ]))
+
+        def revocar(uid):
+            try:
+                CampeonatoService.revocar_permiso(campeonato_activo_id, uid)
+                refrescar()
+            except Exception as err:
+                texto_error.value = f"❌ {str(err)}"
+            page.update()
+
+        def agregar(ev):
+            try:
+                if not tf_usuario.value.strip():
+                    raise ValueError("El ID de usuario es obligatorio")
+                CampeonatoService.asignar_permiso(campeonato_activo_id, int(tf_usuario.value.strip()), dd_rol.value)
+                tf_usuario.value = ""
+                texto_error.value = ""
+                refrescar()
+            except Exception as err:
+                texto_error.value = f"❌ {str(err)}"
+            page.update()
+
+        refrescar()
+        dlg = ft.AlertDialog(
+            title=ft.Row([
+                ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS, color=COLOR_CELESTE, size=22),
+                ft.Text("Permisos del Campeonato", weight=ft.FontWeight.BOLD, size=16),
+            ]),
+            content=ft.Column([col_lista, ft.Divider(height=1), tf_usuario, dd_rol, texto_error],
+                              spacing=10, tight=True, width=340),
+            actions=[
+                ft.TextButton("Cerrar", on_click=lambda ev: (setattr(dlg, 'open', False), page.update())),
+                ft.FilledButton("Agregar", bgcolor=COLOR_VERDE, color=COLOR_TEXTO, on_click=agregar),
+            ],
+            bgcolor=COLOR_TARJETA,
+        )
+        _abrir_dialogo(dlg)
+
+    chips_anios = [
+        _chip_jerarquia(str(a.valor), a.id == anio_activo_id, lambda aid=a.id: seleccionar_anio(aid),
+                        lambda a=a: modal_anio(a), lambda a=a: eliminar_anio(a))
+        for a in anios
+    ]
+    campeonatos_visibles = [c for c in campeonatos if anio_activo_id is None or c.anio_id == anio_activo_id]
+    chips_campeonatos = [
+        _chip_jerarquia(c.nombre, c.id == campeonato_activo_id, lambda cid=c.id: seleccionar_campeonato(cid),
+                        lambda c=c: modal_campeonato(c), lambda c=c: eliminar_campeonato(c))
+        for c in campeonatos_visibles
+    ]
+    copas_visibles = [c for c in copas if campeonato_activo_id is None or c.campeonato_id == campeonato_activo_id]
+    chips_copas = [
+        _chip_jerarquia(c.nombre, c.id == copa_activa_id, lambda cid=c.id: seleccionar_copa(cid),
+                        lambda c=c: modal_copa(c), lambda c=c: eliminar_copa(c))
+        for c in copas_visibles
+    ]
+    if es_organizador:
+        chips_anios.append(_chip_nuevo("Nuevo Año", modal_anio))
+        chips_campeonatos.append(_chip_nuevo("Nuevo Campeonato", modal_campeonato))
+        chips_copas.append(_chip_nuevo("Nueva Copa", modal_copa))
+
+    # ---- Pantalla de inicio: Año (lengüetas) + Campeonato (tarjetas) ----
+    def entrar_campeonato(c):
+        guardar_ultima_seleccion(c.anio_id, c.id)
+        estado["anio_activo_id"] = c.anio_id
+        estado["pantalla"] = "campeonato"
+        seleccionar_campeonato(c.id)
+
+    def volver_inicio(ev=None):
+        estado["pantalla"] = "inicio"
+        on_cambio_seleccion()
+
+    if vista == "inicio":
+        page.bgcolor = COLOR_FONDO
+        tarjetas = []
+        for c in campeonatos_visibles:
+            es_ultimo = (c.id == campeonato_activo_id)
+            fila_titulo = [
+                ft.Icon(ft.Icons.MILITARY_TECH, color=COLOR_AMBAR if es_ultimo else COLOR_CELESTE, size=28),
+                ft.Text(c.nombre, size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO, expand=True),
+            ]
+            contenido = [ft.Row(fila_titulo, spacing=8)]
+            if es_organizador:
+                contenido.append(ft.Row([
+                    ft.IconButton(icon=ft.Icons.EDIT, icon_color=COLOR_CELESTE, icon_size=18, tooltip="Editar",
+                                  on_click=lambda ev, c=c: modal_campeonato(c)),
+                    ft.IconButton(icon=ft.Icons.DELETE, icon_color=COLOR_ROJO, icon_size=18, tooltip="Eliminar",
+                                  on_click=lambda ev, c=c: eliminar_campeonato(c)),
+                ], spacing=0))
+            tarjetas.append(ft.Container(
+                content=ft.Column(contenido, spacing=8),
+                width=260, padding=16, border_radius=12,
+                bgcolor=COLOR_CELESTE_BOTON if es_ultimo else COLOR_TARJETA_SEGUNDARIA,
+                border=ft.Border.all(1, COLOR_CELESTE if es_ultimo else COLOR_BORDE),
+                on_click=lambda ev, c=c: entrar_campeonato(c),
+                ink=True,
+            ))
+        if es_organizador:
+            tarjetas.append(ft.Container(
+                content=ft.Row([ft.Icon(ft.Icons.ADD, color=COLOR_VERDE, size=22),
+                                ft.Text("Nuevo Campeonato", color=COLOR_VERDE, weight=ft.FontWeight.BOLD)], spacing=8),
+                width=260, padding=16, border_radius=12, bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                border=ft.Border.all(1, COLOR_VERDE), on_click=lambda ev: modal_campeonato(), ink=True,
+            ))
+        if not anios:
+            vacio = ft.Text("No hay años creados. Activa el modo Administrar y crea el primero.", color=COLOR_SUBTEXTO)
+        elif not campeonatos_visibles:
+            vacio = ft.Text("No hay campeonatos en este año. Crea el primero desde el modo Administrar.", color=COLOR_SUBTEXTO)
+        else:
+            vacio = None
+        return ft.Container(
+            content=ft.Column([
+                ft.Text("¿Qué campeonato quieres ver?", size=20, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
+                ft.Text("1. Elige el año", size=13, color=COLOR_SUBTEXTO),
+                ft.Row(chips_anios, wrap=True, spacing=8),
+                ft.Divider(color=COLOR_BORDE, height=1),
+                ft.Text("2. Toca un campeonato para entrar", size=13, color=COLOR_SUBTEXTO),
+                vacio if vacio else ft.Container(height=0),
+                ft.Row(tarjetas, wrap=True, spacing=12, run_spacing=12),
+            ], spacing=12),
+            padding=16, bgcolor=COLOR_TARJETA, border_radius=10, border=ft.Border.all(1, COLOR_BORDE),
+        )
+
+    # Torneos filtrados por la copa activa
+    if copa_activa_id:
+        from backend.database.repositories import TorneoRepository as _TorneoRepo
+        torneos = _TorneoRepo.obtener_por_copa(copa_activa_id)
 
     chips_torneos = []
     for t in torneos:
@@ -375,8 +865,8 @@ def crear_selector_categoria_y_dia(
                     weight=ft.FontWeight.BOLD if es_activa else ft.FontWeight.NORMAL,
                     color=COLOR_TEXTO if es_activa else COLOR_SUBTEXTO,
                 ),
-                bgcolor=COLOR_CELESTE_BOTON if es_activo else COLOR_TARJETA_SEGUNDARIA,
-                border=ft.Border.all(1, COLOR_CELESTE if es_activo else COLOR_BORDE),
+                bgcolor=COLOR_CELESTE_BOTON if es_activa else COLOR_TARJETA_SEGUNDARIA,
+                border=ft.Border.all(1, COLOR_CELESTE if es_activa else COLOR_BORDE),
                 border_radius=8,
                 padding=12,
                 on_click=lambda ev, cid=c.id: seleccionar_cat(cid),
@@ -399,6 +889,14 @@ def crear_selector_categoria_y_dia(
                 ink=True,
             )
         )
+
+    if es_organizador and cat_activa_id:
+        def eliminar_categoria_activa():
+            def op():
+                TorneoService.eliminar_categoria(cat_activa_id, es_organizador=True)
+                estado["categoria_activa_id"] = None
+            _modal_eliminar("Eliminar Categoría", "¿Eliminar la categoría activa? Se eliminarán sus grupos y partidos.", op)
+        chips_categorias.append(_chip_eliminar("Eliminar Cat", eliminar_categoria_activa))
 
     # Selector de Jornada (ahora filtradas por torneo)
     def seleccionar_jornada(jornada_id: int):
@@ -488,7 +986,7 @@ def crear_selector_categoria_y_dia(
     # Obtener grupos reales de la categoría y jornada seleccionados
     grupos_reales = []
     if cat_activa_id and jornada_activa_id:
-        grupos_reales = TorneoService.obtener_datos_categoria_dia(cat_activa_id, jornada_activa_id)["grupos"]
+        grupos_reales = [{"grupo": g} for g in GrupoRepository.obtener_por_categoria_y_jornada(cat_activa_id, jornada_activa_id)]
         nombres_grupos = [g["grupo"].nombre for g in grupos_reales]
     else:
         nombres_grupos = ["Grupo A", "Grupo B"]
@@ -603,52 +1101,75 @@ def crear_selector_categoria_y_dia(
             ink=True,
         )
 
+    def _seccion(icono, titulo, chips, extras=None):
+        """Título arriba a la izquierda y lengüetas debajo, adaptadas al ancho."""
+        filas = [
+            ft.Row([
+                ft.Icon(icono, color=COLOR_CELESTE, size=18),
+                ft.Text(titulo, size=13, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
+            ], spacing=6, alignment=ft.MainAxisAlignment.START),
+            ft.Row(chips, wrap=True, spacing=6, run_spacing=6, alignment=ft.MainAxisAlignment.START),
+        ]
+        extras = [x for x in (extras or []) if x is not None]
+        if extras:
+            filas.append(ft.Row(extras, wrap=True, spacing=6, run_spacing=6))
+        return ft.Column(filas, spacing=6, horizontal_alignment=ft.CrossAxisAlignment.START)
+
+    # Cabecera compacta del campeonato: ‹ 2026 · Supercampeones
+    camp_obj = next((c for c in campeonatos if c.id == campeonato_activo_id), None)
+    anio_obj = next((a for a in anios if camp_obj and a.id == camp_obj.anio_id), None)
+    titulo_camp = f"{anio_obj.valor if anio_obj else ''} · {camp_obj.nombre if camp_obj else 'Sin campeonato'}"
+    cabecera = ft.Row([
+        ft.IconButton(icon=ft.Icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_CELESTE, icon_size=18,
+                      tooltip="Cambiar de campeonato", on_click=volver_inicio),
+        ft.Text(titulo_camp, size=18, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO, expand=True),
+    ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+    controles_admin = []
+    if es_organizador and camp_obj:
+        controles_admin = [ft.Row([
+            _chip_nuevo("Editar campeonato", lambda: modal_campeonato(camp_obj)),
+            _chip_nuevo("Permisos", modal_permisos),
+            _chip_eliminar("Eliminar campeonato", lambda: eliminar_campeonato(camp_obj)),
+        ], wrap=True, spacing=6)]
+
+    copa_obj = next((c for c in copas if c.id == copa_activa_id), None)
+    color_copa = copa_obj.color if copa_obj and copa_obj.color else None
+    page.bgcolor = color_copa or COLOR_FONDO
+
+    if color_copa:
+        def _mezclar(hexa, f):
+            h = hexa.lstrip("#")
+            r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+            return "#%02X%02X%02X" % tuple(int(c + (255 - c) * f) for c in (r, g, b))
+
+        tono_activo = _mezclar(color_copa, 0.35)
+        tono_inactivo = _mezclar(color_copa, 0.12)
+        for ch in (chips_copas + chips_torneos + chips_jornadas + chips_categorias + chips_grupos
+                   + [btn_crear_jornada, btn_buscar_jornada, btn_eliminar_jornada, btn_crear_grupo]):
+            if isinstance(ch, ft.Container):
+                if ch.bgcolor == COLOR_CELESTE_BOTON:
+                    ch.bgcolor = tono_activo
+                elif ch.bgcolor in (COLOR_TARJETA_SEGUNDARIA, COLOR_TARJETA):
+                    ch.bgcolor = tono_inactivo
+
     return ft.Container(
         content=ft.Column([
-            # Fila 1: Selector de Torneos
-            ft.Row([
-                ft.Icon(ft.Icons.EMOJI_EVENTS, color=COLOR_CELESTE, size=18),
-                ft.Text("Torneo:", size=13, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
-                ft.Row(chips_torneos, wrap=True, spacing=6),
-            ], wrap=True, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-
+            cabecera,
+            *controles_admin,
             ft.Divider(color=COLOR_BORDE, height=1),
-
-            # Fila 2: Selector de Jornada (Fecha) - wrap para móviles
-            ft.Column([
-                ft.Row([
-                    ft.Icon(ft.Icons.CALENDAR_TODAY, color=COLOR_CELESTE, size=12),
-                    ft.Text("Jornada:", size=10, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
-                ], spacing=4),
-                ft.Row(chips_jornadas, wrap=True, spacing=3),
-                ft.Row([
-                    btn_crear_jornada if btn_crear_jornada else ft.Container(width=0, height=0),
-                    btn_buscar_jornada if btn_buscar_jornada else ft.Container(width=0, height=0),
-                    btn_eliminar_jornada if btn_eliminar_jornada else ft.Container(width=0, height=0),
-                ], spacing=4),
-            ], spacing=4),
-
+            _seccion(ft.Icons.LOCAL_BAR, "Copa", chips_copas),
             ft.Divider(color=COLOR_BORDE, height=1),
-
-            # Fila 3: Selector de Categorías
-            ft.Row([
-                ft.Icon(ft.Icons.SCHOOL, color=COLOR_CELESTE, size=18),
-                ft.Text("Categoría:", size=13, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
-                ft.Row(chips_categorias, wrap=True, spacing=6),
-            ], wrap=True, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-
+            _seccion(ft.Icons.EMOJI_EVENTS, "Torneo", chips_torneos),
             ft.Divider(color=COLOR_BORDE, height=1),
-
-            # Fila 4: Filtro de Grupo
-            ft.Row([
-                ft.Icon(ft.Icons.GROUPS, color=COLOR_CELESTE, size=18),
-                ft.Text("Grupo:", size=13, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
-                ft.Row(chips_grupos, wrap=True, spacing=6),
-                btn_crear_grupo if btn_crear_grupo else ft.Container(width=0, height=0),
-            ], wrap=True, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            _seccion(ft.Icons.CALENDAR_TODAY, "Jornada", chips_jornadas, [
+                btn_crear_jornada, btn_buscar_jornada, btn_eliminar_jornada]),
+            ft.Divider(color=COLOR_BORDE, height=1),
+            _seccion(ft.Icons.SCHOOL, "Categoría", chips_categorias),
+            ft.Divider(color=COLOR_BORDE, height=1),
+            _seccion(ft.Icons.GROUPS, "Grupo", chips_grupos, [btn_crear_grupo]),
         ], spacing=10),
         padding=12,
-        bgcolor=COLOR_TARJETA,
+        bgcolor=color_copa or COLOR_TARJETA,
         border_radius=10,
         border=ft.Border.all(1, COLOR_BORDE),
     )

@@ -8,6 +8,8 @@ class Jornada:
     fecha: str
     nombre: str
     orden: int = 1
+    lugar: str = None
+    horario: str = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -16,6 +18,8 @@ class Jornada:
             "fecha": self.fecha,
             "nombre": self.nombre,
             "orden": self.orden,
+            "lugar": self.lugar,
+            "horario": self.horario,
         }
 
     @classmethod
@@ -26,4 +30,6 @@ class Jornada:
             fecha=data.get("fecha", ""),
             nombre=data.get("nombre", ""),
             orden=data.get("orden", 1),
+            lugar=data.get("lugar"),
+            horario=data.get("horario"),
         )

@@ -6,10 +6,48 @@ from config.constants import CATEGORIAS_DEFAULT, DIAS_DEFAULT, GRUPOS_DEFAULT
 def inicializar_db():
     """
     Crea las tablas de AppSuperChampion e inicializa torneos, categorías y grupos por defecto si no existen.
-    Nueva jerarquía: Torneo -> Jornada -> Categoría -> Grupo -> Partido
+    Nueva jerarquía: Año -> Campeonato -> Copa -> Torneo -> Jornada -> Categoría -> Grupo -> Partido
     """
     con = obtener_conexion()
     cursor = con.cursor()
+
+    # Tabla Años
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS anios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        valor INTEGER NOT NULL,
+        orden INTEGER DEFAULT 0,
+        activo INTEGER DEFAULT 1
+    )
+    """)
+
+    # Tabla Campeonatos
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS campeonatos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        anio_id INTEGER NOT NULL,
+        orden INTEGER DEFAULT 0,
+        activo INTEGER DEFAULT 1,
+        FOREIGN KEY (anio_id) REFERENCES anios(id) ON DELETE CASCADE
+    )
+    """)
+
+    # Tabla Copas
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS copas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        campeonato_id INTEGER NOT NULL,
+        orden INTEGER DEFAULT 0,
+        activo INTEGER DEFAULT 1,
+        FOREIGN KEY (campeonato_id) REFERENCES campeonatos(id) ON DELETE CASCADE
+    )
+    """)
+    try:
+        cursor.execute("ALTER TABLE copas ADD COLUMN color TEXT")
+    except Exception:
+        pass
 
     # Tabla Torneos
     cursor.execute("""
@@ -17,11 +55,12 @@ def inicializar_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         tipo TEXT NOT NULL,
-        anio INTEGER NOT NULL,
+        copa_id INTEGER NOT NULL,
         orden INTEGER DEFAULT 0,
         activo INTEGER DEFAULT 1,
         fecha_inicio DATE,
-        fecha_fin DATE
+        fecha_fin DATE,
+        FOREIGN KEY (copa_id) REFERENCES copas(id) ON DELETE CASCADE
     )
     """)
 
@@ -33,6 +72,8 @@ def inicializar_db():
         fecha DATE NOT NULL,
         nombre TEXT NOT NULL,
         orden INTEGER NOT NULL,
+        lugar TEXT,
+        horario TEXT,
         FOREIGN KEY (torneo_id) REFERENCES torneos(id) ON DELETE CASCADE
     )
     """)
@@ -89,17 +130,43 @@ def inicializar_db():
     )
     """)
 
+    # Tabla de Permisos por Campeonato
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS campeonato_permisos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        campeonato_id INTEGER NOT NULL,
+        usuario_id INTEGER NOT NULL,
+        rol TEXT NOT NULL,
+        fecha_asignacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (campeonato_id) REFERENCES campeonatos(id) ON DELETE CASCADE,
+        UNIQUE(campeonato_id, usuario_id)
+    )
+    """)
+
     con.commit()
 
-    # Poblar torneo por defecto si está vacío
-    cursor.execute("SELECT COUNT(*) FROM torneos")
-    count_torneos = cursor.fetchone()[0]
-    if count_torneos == 0:
+    # Poblar datos por defecto si están vacíos
+    cursor.execute("SELECT COUNT(*) FROM anios")
+    count_anios = cursor.fetchone()[0]
+    
+    if count_anios == 0:
         anio_actual = datetime.now().year
-        # Crear torneo Apertura por defecto
+        # Crear año actual
+        cursor.execute("INSERT INTO anios (valor, orden, activo) VALUES (?, 1, 1)", (anio_actual,))
+        anio_id = cursor.lastrowid
+
+        # Crear campeonato por defecto
+        cursor.execute("INSERT INTO campeonatos (nombre, anio_id, orden, activo) VALUES (?, ?, 1, 1)", ("Supercampeones", anio_id))
+        campeonato_id = cursor.lastrowid
+
+        # Crear copa por defecto
+        cursor.execute("INSERT INTO copas (nombre, campeonato_id, orden, activo) VALUES (?, ?, 1, 1)", ("Copa Supercampeones", campeonato_id))
+        copa_id = cursor.lastrowid
+
+        # Crear torneo por defecto
         cursor.execute(
-            "INSERT INTO torneos (nombre, tipo, anio, activo) VALUES (?, ?, ?, 1)",
-            (f"Torneo {anio_actual}", "Apertura", anio_actual)
+            "INSERT INTO torneos (nombre, tipo, copa_id, orden, activo) VALUES (?, ?, ?, 1, 1)",
+            (f"Torneo {anio_actual}", "Apertura", copa_id)
         )
         torneo_id = cursor.lastrowid
 

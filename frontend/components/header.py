@@ -13,6 +13,7 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
 
     def cerrar_sesion_organizador(e):
         estado["es_organizador"] = False
+        estado["modo_admin"] = False
         on_cambio_rol()
         page.snack_bar = ft.SnackBar(
             content=ft.Text("👁️ Modo Consulta activado."),
@@ -22,12 +23,25 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
         page.snack_bar.open = True
         page.update()
 
+    def alternar_modo_admin(e):
+        estado["modo_admin"] = not estado.get("modo_admin", False)
+        on_cambio_rol()
+
+    modo_admin = estado.get("modo_admin", False)
+
     # Widget de Rol
     if es_organizador:
         badge_rol = ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS, color=COLOR_VERDE, size=16),
                 ft.Text("Mesa de Control (Organizador)", size=12, weight=ft.FontWeight.BOLD, color=COLOR_VERDE),
+                ft.IconButton(
+                    icon=ft.Icons.EDIT if not modo_admin else ft.Icons.EDIT_OFF,
+                    icon_color=COLOR_AMBAR if modo_admin else COLOR_CELESTE,
+                    icon_size=18,
+                    tooltip="Salir de Administrar" if modo_admin else "Administrar (crear, editar, eliminar)",
+                    on_click=alternar_modo_admin
+                ),
                 ft.IconButton(
                     icon=ft.Icons.LOGOUT,
                     icon_color=COLOR_ROJO,

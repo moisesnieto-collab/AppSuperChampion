@@ -2,8 +2,12 @@ import os
 import flet as ft
 from datetime import datetime, timedelta
 from backend.database.schema import inicializar_db
-from backend.database.repositories import JornadaRepository
+from backend.database.repositories import JornadaRepository, CampeonatoRepository
+from config.preferencias import cargar_ultima_seleccion
 from backend.services.torneo_service import TorneoService
+from backend.services.anio_service import AnioService
+from backend.services.campeonato_service import CampeonatoService
+from backend.services.copa_service import CopaService
 from config.settings import APP_TITLE, APP_THEME_MODE, APP_BGCOLOR
 from config.constants import (
     COLOR_FONDO, COLOR_AMBAR, COLOR_CELESTE, COLOR_CELESTE_BOTON,
@@ -20,6 +24,11 @@ def main(page: ft.Page):
     # Configuración de la página
     page.title = APP_TITLE
     page.theme_mode = APP_THEME_MODE
+    page.fonts = {
+        "Montserrat": "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf",
+    }
+    page.theme = ft.Theme(font_family="Montserrat")
+    page.dark_theme = ft.Theme(font_family="Montserrat")
     page.bgcolor = COLOR_FONDO
     page.padding = 0
     page.scroll = ft.ScrollMode.AUTO
@@ -32,30 +41,72 @@ def main(page: ft.Page):
     # Estado global de la aplicación
     estado = {
         "es_organizador": False,
+        "anio_activo_id": None,
+        "campeonato_activo_id": None,
+        "copa_activa_id": None,
         "torneo_activo_id": None,
         "jornada_activa_id": None,
         "categoria_activa_id": None,
         "grupo_filtro": "Todos",
+        "modo_admin": False,
+        "pantalla": "inicio",
     }
 
-    # Cargar torneos iniciales
-    torneos = TorneoService.obtener_torneos()
-    if torneos:
-        # Seleccionar el torneo activo o el primero
-        torneo_activo = TorneoService.obtener_torneo_activo()
-        if torneo_activo:
-            estado["torneo_activo_id"] = torneo_activo.id
+    # Cargar datos iniciales - jerarquía completa
+    anios = AnioService.obtener_anios()
+    if anios:
+        # Seleccionar el año activo o el primero
+        anio_activo = AnioService.obtener_anio_activo()
+        if anio_activo:
+            estado["anio_activo_id"] = anio_activo.id
         else:
-            estado["torneo_activo_id"] = torneos[0].id
-        
-        # Cargar la primera jornada del torneo
-        jornadas = TorneoService.obtener_jornadas_por_torneo(estado["torneo_activo_id"])
-        if jornadas:
-            estado["jornada_activa_id"] = jornadas[0].id
-            # Cargar la primera categoría de la jornada
-            categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
-            if categorias:
-                estado["categoria_activa_id"] = categorias[0].id
+            estado["anio_activo_id"] = anios[0].id
+
+        # Recordar la última selección: si existe, se entra directo al campeonato
+        _, camp_ultimo_id = cargar_ultima_seleccion()
+        camp_ultimo = CampeonatoRepository.obtener_por_id(camp_ultimo_id) if camp_ultimo_id else None
+        if camp_ultimo:
+            estado["anio_activo_id"] = camp_ultimo.anio_id
+            estado["pantalla"] = "campeonato"
+
+        # Cargar campeonatos del año
+        campeonatos = CampeonatoService.obtener_campeonatos_por_anio(estado["anio_activo_id"])
+        if campeonatos:
+            campeonato_activo = CampeonatoService.obtener_campeonato_activo()
+            if camp_ultimo:
+                estado["campeonato_activo_id"] = camp_ultimo.id
+            elif campeonato_activo and campeonato_activo.anio_id == estado["anio_activo_id"]:
+                estado["campeonato_activo_id"] = campeonato_activo.id
+            else:
+                estado["campeonato_activo_id"] = campeonatos[0].id
+            
+            # Cargar copas del campeonato
+            copas = CopaService.obtener_copas_por_campeonato(estado["campeonato_activo_id"])
+            if copas:
+                copa_activa = CopaService.obtener_copa_activo()
+                if copa_activa and copa_activa.campeonato_id == estado["campeonato_activo_id"]:
+                    estado["copa_activa_id"] = copa_activa.id
+                else:
+                    estado["copa_activa_id"] = copas[0].id
+                
+                # Cargar torneos de la copa
+                from backend.database.repositories import TorneoRepository
+                torneos = TorneoRepository.obtener_por_copa(estado["copa_activa_id"])
+                if torneos:
+                    torneo_activo = TorneoService.obtener_torneo_activo()
+                    if torneo_activo and any(t.id == torneo_activo.id for t in torneos):
+                        estado["torneo_activo_id"] = torneo_activo.id
+                    else:
+                        estado["torneo_activo_id"] = torneos[0].id
+                    
+                    # Cargar la primera jornada del torneo
+                    jornadas = TorneoService.obtener_jornadas_por_torneo(estado["torneo_activo_id"])
+                    if jornadas:
+                        estado["jornada_activa_id"] = jornadas[0].id
+                        # Cargar la primera categoría de la jornada
+                        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
+                        if categorias:
+                            estado["categoria_activa_id"] = categorias[0].id
 
     # Contenedor principal para el contenido dinámico
     contenido_principal = ft.Column([], scroll=ft.ScrollMode.AUTO, spacing=16)
@@ -322,6 +373,8 @@ def main(page: ft.Page):
         dp_fecha.on_change = on_fecha_change
 
         tf_nombre = ft.TextField(label="Nombre (ej: Día 3)")
+        tf_lugar = ft.TextField(label="Lugar (opcional)")
+        tf_horario = ft.TextField(label="Horario HH:MM (opcional)", hint_text="09:30")
         texto_error = ft.Text("", color=COLOR_ROJO, size=12)
 
         def guardar_jornada(ev):
@@ -329,6 +382,14 @@ def main(page: ft.Page):
                 texto_error.value = "❌ Debes seleccionar una fecha"
                 page.update()
                 return
+            horario_val = tf_horario.value.strip()
+            if horario_val:
+                try:
+                    datetime.strptime(horario_val, "%H:%M")
+                except ValueError:
+                    texto_error.value = "❌ Horario inválido, use formato HH:MM"
+                    page.update()
+                    return
 
             nombre = tf_nombre.value.strip() or f"Día {len(JornadaRepository.obtener_por_torneo(torneo_id)) + 1}"
             fecha = dp_fecha.value.isoformat()
@@ -338,7 +399,9 @@ def main(page: ft.Page):
                 jornadas = JornadaRepository.obtener_por_torneo(torneo_id)
                 nuevo_orden = len(jornadas) + 1
 
-                jornada_id = JornadaRepository.crear(torneo_id, fecha, nombre, nuevo_orden)
+                jornada_id = JornadaRepository.crear(torneo_id, fecha, nombre, nuevo_orden,
+                                                     lugar=tf_lugar.value.strip() or None,
+                                                     horario=horario_val or None)
                 estado["jornada_activa_id"] = jornada_id
                 dlg_crear_jornada.open = False
                 actualizar_vista()
@@ -362,6 +425,8 @@ def main(page: ft.Page):
                 ft.Text("Selecciona la fecha de la nueva jornada"),
                 ft.Row([btn_fecha, texto_fecha], spacing=10),
                 tf_nombre,
+                tf_lugar,
+                tf_horario,
                 texto_error,
             ], spacing=10, tight=True, width=340),
             actions=[
@@ -581,6 +646,17 @@ def main(page: ft.Page):
         jornada_id = estado.get("jornada_activa_id")
         grupo_filtro = estado.get("grupo_filtro", "Todos")
         es_org = estado.get("es_organizador", False)
+
+        # Pantalla de inicio: solo Año y Campeonato
+        if estado.get("pantalla", "inicio") == "inicio":
+            selector_container.content = crear_selector_categoria_y_dia(
+                estado, page, [], [], on_cambio_seleccion, vista="inicio"
+            )
+            header_nuevo = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin)
+            header.content = header_nuevo.content
+            contenido_principal.controls = []
+            page.update()
+            return
 
         # Cargar categorías de la jornada activa
         categorias_actual = []

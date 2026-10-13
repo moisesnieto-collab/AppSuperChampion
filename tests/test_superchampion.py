@@ -22,6 +22,7 @@ class TestSuperChampion(unittest.TestCase):
         import config.settings
         cls.original_turso_url = config.settings.TURSO_URL
         config.settings.TURSO_URL = cls.test_db_path
+        config.settings.TURSO_TOKEN = ""
         
         # Inicializar base de datos de prueba
         inicializar_db()
@@ -47,6 +48,10 @@ class TestSuperChampion(unittest.TestCase):
         cursor.execute("DELETE FROM categorias")
         cursor.execute("DELETE FROM jornadas")
         cursor.execute("DELETE FROM torneos")
+        cursor.execute("DELETE FROM copas")
+        cursor.execute("DELETE FROM campeonato_permisos")
+        cursor.execute("DELETE FROM campeonatos")
+        cursor.execute("DELETE FROM anios")
         con.commit()
         
         # Reinicializar con datos por defecto
