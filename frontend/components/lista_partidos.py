@@ -124,7 +124,8 @@ def crear_lista_partidos(
                 text_align=ft.TextAlign.CENTER,
                 text_size=16,
                 keyboard_type=ft.KeyboardType.NUMBER,
-                max_length=2
+                max_length=2,
+                counter=ft.Text("")
             )
             tf_goles_visita = ft.TextField(
                 value=str(partido.goles_visita),
@@ -132,7 +133,8 @@ def crear_lista_partidos(
                 text_align=ft.TextAlign.CENTER,
                 text_size=16,
                 keyboard_type=ft.KeyboardType.NUMBER,
-                max_length=2
+                max_length=2,
+                counter=ft.Text("")
             )
             
             def guardar_marcador(e, p_id=partido.id, tf_loc=tf_goles_local, tf_vis=tf_goles_visita):

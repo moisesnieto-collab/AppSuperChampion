@@ -402,7 +402,10 @@ def main(page: ft.Page):
                 jornada_id = JornadaRepository.crear(torneo_id, fecha, nombre, nuevo_orden,
                                                      lugar=tf_lugar.value.strip() or None,
                                                      horario=horario_val or None)
+                TorneoService.copiar_categorias_de_ultima_jornada(torneo_id, jornada_id)
                 estado["jornada_activa_id"] = jornada_id
+                _cats = TorneoService.obtener_categorias_por_jornada(jornada_id)
+                estado["categoria_activa_id"] = _cats[0].id if _cats else None
                 dlg_crear_jornada.open = False
                 actualizar_vista()
                 page.snack_bar = ft.SnackBar(
@@ -645,7 +648,7 @@ def main(page: ft.Page):
         cat_id = estado.get("categoria_activa_id")
         jornada_id = estado.get("jornada_activa_id")
         grupo_filtro = estado.get("grupo_filtro", "Todos")
-        es_org = estado.get("es_organizador", False)
+        es_org = bool(estado.get("es_organizador", False) and estado.get("modo_admin", False))
 
         # Pantalla de inicio: solo Año y Campeonato
         if estado.get("pantalla", "inicio") == "inicio":
@@ -737,7 +740,7 @@ def main(page: ft.Page):
                 estado_campeon=estado_campeon,
                 es_organizador=es_org,
                 on_generar_desempate=on_generar_desempate,
-                on_generar_final=on_generar_final,
+                on_generar_final=on_generar_final if copa_activa and copa_activa.modo_campeon == "final_lideres" else None,
                 color_copa=color_copa
             )
         )
@@ -866,12 +869,13 @@ def main(page: ft.Page):
             jornada_id = estado.get("jornada_activa_id")
             if not jornada_id:
                 raise ValueError("No hay una jornada seleccionada")
-            TorneoService.generar_final_dia2(
+            resultado = TorneoService.generar_final_dia2(
                 cat_id, jornada_id, es_organizador=estado.get("es_organizador", False)
             )
             page.snack_bar = ft.SnackBar(
-                content=ft.Text("🏆 Gran Final generada"),
-                bgcolor=ft.Colors.GREEN_600,
+                content=ft.Text("🏆 Gran Final generada" if resultado else
+                                "⚠️ Se necesitan al menos 2 grupos para generar la Gran Final"),
+                bgcolor=ft.Colors.GREEN_600 if resultado else ft.Colors.AMBER_600,
                 duration=2000
             )
             page.snack_bar.open = True

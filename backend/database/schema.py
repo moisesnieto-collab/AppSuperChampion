@@ -44,10 +44,15 @@ def inicializar_db():
         FOREIGN KEY (campeonato_id) REFERENCES campeonatos(id) ON DELETE CASCADE
     )
     """)
-    try:
-        cursor.execute("ALTER TABLE copas ADD COLUMN color TEXT")
-    except Exception:
-        pass
+    for _col, _def in (("color", "TEXT"),
+                       ("modo_campeon", "TEXT DEFAULT 'final_lideres'"),
+                       ("criterios_desempate", "TEXT DEFAULT 'dg,gf,h2h,pg,gc'"),
+                       ("puntos_victoria", "INTEGER DEFAULT 3"),
+                       ("puntos_empate", "INTEGER DEFAULT 1")):
+        try:
+            cursor.execute(f"ALTER TABLE copas ADD COLUMN {_col} {_def}")
+        except Exception:
+            pass
 
     # Tabla Torneos
     cursor.execute("""

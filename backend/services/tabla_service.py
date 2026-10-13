@@ -1,10 +1,13 @@
 from typing import List, Dict, Any
 from backend.models.partido import Partido
+from functools import cmp_to_key
 from backend.models.tabla import EstadisticaEquipo
+from backend.models.copa import CRITERIOS_DEFECTO
 
 class TablaService:
     @staticmethod
-    def calcular_tabla(partidos: List[Partido], equipos: List[str]) -> List[EstadisticaEquipo]:
+    def calcular_tabla(partidos: List[Partido], equipos: List[str], criterios: List[str] = None,
+                       pts_victoria: int = 3, pts_empate: int = 1) -> List[EstadisticaEquipo]:
         """
         Calcula la tabla de posiciones a partir de los partidos jugados y la lista de equipos.
         Criterios de ordenamiento:
@@ -49,41 +52,63 @@ class TablaService:
 
             if g_loc > g_vis:
                 stats[loc].pg += 1
-                stats[loc].pts += 3
+                stats[loc].pts += pts_victoria
                 stats[vis].pp += 1
             elif g_loc < g_vis:
                 stats[vis].pg += 1
-                stats[vis].pts += 3
+                stats[vis].pts += pts_victoria
                 stats[loc].pp += 1
             else:
                 stats[loc].pe += 1
                 stats[vis].pe += 1
-                stats[loc].pts += 1
-                stats[vis].pts += 1
+                stats[loc].pts += pts_empate
+                stats[vis].pts += pts_empate
 
         tabla = list(stats.values())
+        criterios = criterios or CRITERIOS_DEFECTO.split(",")
 
-        # Ordenamiento preliminar por Puntos, DG, GF
-        def criterio_base(item: EstadisticaEquipo):
-            return (-item.pts, -item.dg, -item.gf, item.equipo)
+        def directo(a: str, b: str):
+            """(puntos de a, puntos de b, dif. de goles de a) en los partidos entre a y b."""
+            pa = pb = dga = 0
+            for p in partidos_jugados:
+                if {p.equipo_local, p.equipo_visita} != {a, b}:
+                    continue
+                ga = p.goles_local if p.equipo_local == a else p.goles_visita
+                gb = p.goles_visita if p.equipo_local == a else p.goles_local
+                dga += ga - gb
+                if ga > gb:
+                    pa += pts_victoria
+                elif ga < gb:
+                    pb += pts_victoria
+                else:
+                    pa += pts_empate
+                    pb += pts_empate
+            return pa, pb, dga
 
-        tabla.sort(key=criterio_base)
+        def comparar(x: EstadisticaEquipo, y: EstadisticaEquipo) -> int:
+            if x.pts != y.pts:
+                return -1 if x.pts > y.pts else 1
+            for c in criterios:
+                if c == "dg":
+                    vx, vy = x.dg, y.dg
+                elif c == "pg":
+                    vx, vy = x.pg, y.pg
+                elif c == "gf":
+                    vx, vy = x.gf, y.gf
+                elif c == "gc":
+                    vx, vy = -x.gc, -y.gc
+                elif c == "h2h":
+                    vx, vy, _ = directo(x.equipo, y.equipo)
+                elif c == "dg_h2h":
+                    _, _, vx = directo(x.equipo, y.equipo)
+                    vy = -vx
+                else:
+                    continue
+                if vx != vy:
+                    return -1 if vx > vy else 1
+            return 0
 
-        # Criterio de desempate por enfrentamiento directo si hay 2 equipos empatados en Pts, DG, GF
-        if len(tabla) >= 2:
-            for i in range(len(tabla) - 1):
-                e1 = tabla[i]
-                e2 = tabla[i + 1]
-                if e1.pts == e2.pts and e1.dg == e2.dg and e1.gf == e2.gf:
-                    # Buscar enfrentamiento directo entre e1 y e2
-                    for p in partidos_jugados:
-                        if (p.equipo_local == e1.equipo and p.equipo_visita == e2.equipo) or \
-                           (p.equipo_local == e2.equipo and p.equipo_visita == e1.equipo):
-                            g_e1 = p.goles_local if p.equipo_local == e1.equipo else p.goles_visita
-                            g_e2 = p.goles_visita if p.equipo_local == e1.equipo else p.goles_local
-                            if g_e2 > g_e1:
-                                # e2 ganó el enfrentamiento directo -> intercambiar
-                                tabla[i], tabla[i + 1] = tabla[i + 1], tabla[i]
-                            break
-
+        tabla.sort(key=cmp_to_key(lambda x, y: comparar(x, y) or ((x.equipo > y.equipo) - (x.equipo < y.equipo))))
+        for i, e in enumerate(tabla):
+            e.empate_con_siguiente = i + 1 < len(tabla) and comparar(e, tabla[i + 1]) == 0
         return tabla

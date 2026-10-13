@@ -12,6 +12,7 @@ class EstadisticaEquipo:
     gc: int = 0
     dg: int = 0
     pts: int = 0
+    empate_con_siguiente: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {

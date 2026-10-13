@@ -11,7 +11,7 @@ from backend.models.torneo import Torneo
 from backend.models.jornada import Jornada
 from backend.models.anio import Anio
 from backend.models.campeonato import Campeonato
-from backend.models.copa import Copa
+from backend.models.copa import Copa, MODOS_CAMPEON, CRITERIOS_DESEMPATE
 from backend.services.torneo_service import TorneoService
 from backend.services.anio_service import AnioService
 from backend.services.campeonato_service import CampeonatoService
@@ -489,24 +489,84 @@ def crear_selector_categoria_y_dia(
             value=str(copa.campeonato_id if copa else campeonato_activo_id) if (copa or campeonato_activo_id) else None,
         )
 
+        # --- Reglas de la copa: campeón, puntos y orden de criterios de desempate ---
+        dd_modo = ft.Dropdown(
+            label="Cómo se define el campeón",
+            options=[ft.dropdown.Option(key=k, text=v) for k, v in MODOS_CAMPEON.items()],
+            value=copa.modo_campeon if copa else "final_lideres",
+        )
+        tf_pv = ft.TextField(label="Puntos por victoria", value=str(copa.puntos_victoria if copa else 3),
+                             input_filter=ft.NumbersOnlyInputFilter(), expand=True)
+        tf_pe = ft.TextField(label="Puntos por empate", value=str(copa.puntos_empate if copa else 1),
+                             input_filter=ft.NumbersOnlyInputFilter(), expand=True)
+        activos = list(copa.lista_criterios()) if copa else ["dg", "gf", "h2h", "pg", "gc"]
+        orden_crit = activos + [k for k in CRITERIOS_DESEMPATE if k not in activos]
+        habilitados = {k: (k in activos) for k in CRITERIOS_DESEMPATE}
+        col_crit = ft.Column(spacing=0, tight=True)
+
+        def pintar_criterios():
+            filas = []
+            for idx, k in enumerate(orden_crit):
+                filas.append(ft.Row([
+                    ft.Checkbox(value=habilitados[k], on_change=lambda ev, k=k: alternar(k, ev.control.value)),
+                    ft.Text(f"{idx + 1}. {CRITERIOS_DESEMPATE[k]}", size=12, color=COLOR_TEXTO, expand=True),
+                    ft.IconButton(icon=ft.Icons.ARROW_UPWARD, icon_size=16, on_click=lambda ev, i=idx: mover(i, -1)),
+                    ft.IconButton(icon=ft.Icons.ARROW_DOWNWARD, icon_size=16, on_click=lambda ev, i=idx: mover(i, 1)),
+                ], spacing=0))
+            col_crit.controls = filas
+
+        def alternar(k, v):
+            habilitados[k] = bool(v)
+
+        def mover(i, d):
+            j = i + d
+            if 0 <= j < len(orden_crit):
+                orden_crit[i], orden_crit[j] = orden_crit[j], orden_crit[i]
+                pintar_criterios()
+                page.update()
+
+        pintar_criterios()
+        chk_borrar = ft.Checkbox(
+            label="Borrar partidos de desempate/final si cambia la regla del campeón (irreversible)",
+            value=True,
+        )
+        bloque_reglas = ft.Column([
+            dd_modo,
+            ft.Row([tf_pv, tf_pe], spacing=8),
+            ft.Text("Desempate del puntero de grupo (tras los puntos). Marca los criterios y ordénalos:",
+                    size=12, color=COLOR_SUBTEXTO),
+            col_crit,
+        ] + ([chk_borrar] if copa else []), spacing=8)
+
         def guardar():
             nombre = tf_nombre.value.strip()
             if not nombre:
                 raise ValueError("El nombre es obligatorio")
             if not dd_camp.value:
                 raise ValueError("Debe seleccionar un campeonato")
+            reglas = dict(
+                modo_campeon=dd_modo.value or "final_lideres",
+                criterios_desempate=",".join(k for k in orden_crit if habilitados[k]),
+                puntos_victoria=int(tf_pv.value or 3),
+                puntos_empate=int(tf_pe.value or 1),
+            )
             if copa:
                 from backend.database.repositories import CopaRepository
-                CopaRepository.actualizar(copa.id, nombre, int(dd_camp.value), copa.orden, copa.activo, color_sel["v"])
+                modo_anterior = copa.modo_campeon
+                CopaRepository.actualizar(copa.id, nombre, int(dd_camp.value), copa.orden, copa.activo, color_sel["v"], **reglas)
+                if chk_borrar.value and reglas["modo_campeon"] != modo_anterior:
+                    CopaService.limpiar_partidos_definicion(copa.id)
             else:
                 estado["campeonato_activo_id"] = int(dd_camp.value)
-                nuevo_id = CopaService.crear_copa(nombre, int(dd_camp.value), color=color_sel["v"])
+                nuevo_id = CopaService.crear_copa(nombre, int(dd_camp.value), color=color_sel["v"], **reglas)
                 estado["copa_activa_id"] = nuevo_id
                 estado["torneo_activo_id"] = None
                 estado["jornada_activa_id"] = None
                 estado["categoria_activa_id"] = None
 
-        _modal_formulario("Editar Copa" if copa else "Nueva Copa", [tf_nombre, dd_camp, ft.Text("Color de la copa", size=12, color=COLOR_SUBTEXTO), fila_colores], guardar, "Guardar" if copa else "Crear")
+        _modal_formulario("Editar Copa" if copa else "Nueva Copa", [ft.Column([tf_nombre, dd_camp, ft.Text("Color de la copa", size=12, color=COLOR_SUBTEXTO), fila_colores,
+                                                                                     ft.Divider(height=1), bloque_reglas],
+                                                                                    spacing=10, scroll=ft.ScrollMode.AUTO, height=420)], guardar, "Guardar" if copa else "Crear")
 
     def eliminar_copa(copa):
         def op():
@@ -835,7 +895,7 @@ def crear_selector_categoria_y_dia(
                 ft.Text("Nueva Categoría", weight=ft.FontWeight.BOLD, size=16),
             ]),
             content=ft.Column([
-                ft.Text("Crea una nueva categoría con cuadrangulares automáticos."),
+                ft.Text("Crea una nueva categoría (los grupos se crean manualmente)."),
                 tf_nombre,
                 texto_error,
             ], spacing=10, tight=True, width=340),

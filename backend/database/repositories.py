@@ -9,7 +9,7 @@ from backend.models.torneo import Torneo
 from backend.models.jornada import Jornada
 from backend.models.anio import Anio
 from backend.models.campeonato import Campeonato
-from backend.models.copa import Copa
+from backend.models.copa import Copa, MODO_CAMPEON_DEFECTO, CRITERIOS_DEFECTO
 from backend.models.campeonato_permiso import CampeonatoPermiso
 
 
@@ -570,48 +570,59 @@ class CampeonatoRepository:
         con.commit()
 
 
+def _a_copa(r) -> Copa:
+    return Copa(id=r[0], nombre=r[1], campeonato_id=r[2], orden=r[3], activo=bool(r[4]), color=r[5],
+                modo_campeon=r[6] or MODO_CAMPEON_DEFECTO,
+                criterios_desempate=r[7] or CRITERIOS_DEFECTO,
+                puntos_victoria=3 if r[8] is None else r[8],
+                puntos_empate=1 if r[9] is None else r[9])
+
+
 class CopaRepository:
     @staticmethod
     def obtener_todos() -> List[Copa]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas ORDER BY orden ASC, id DESC")
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate FROM copas ORDER BY orden ASC, id DESC")
         rows = cursor.fetchall()
-        return [Copa(id=r[0], nombre=r[1], campeonato_id=r[2], orden=r[3], activo=bool(r[4]), color=r[5]) for r in rows]
+        return [_a_copa(r) for r in rows]
 
     @staticmethod
     def obtener_por_id(copa_id: int) -> Optional[Copa]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas WHERE id = ?", (copa_id,))
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate FROM copas WHERE id = ?", (copa_id,))
         row = cursor.fetchone()
         if row:
-            return Copa(id=row[0], nombre=row[1], campeonato_id=row[2], orden=row[3], activo=bool(row[4]), color=row[5])
+            return _a_copa(row)
         return None
 
     @staticmethod
     def obtener_por_campeonato(campeonato_id: int) -> List[Copa]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas WHERE campeonato_id = ? ORDER BY orden ASC, id DESC", (campeonato_id,))
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate FROM copas WHERE campeonato_id = ? ORDER BY orden ASC, id DESC", (campeonato_id,))
         rows = cursor.fetchall()
-        return [Copa(id=r[0], nombre=r[1], campeonato_id=r[2], orden=r[3], activo=bool(r[4]), color=r[5]) for r in rows]
+        return [_a_copa(r) for r in rows]
 
     @staticmethod
     def obtener_activo() -> Optional[Copa]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color FROM copas WHERE activo = 1 ORDER BY orden ASC, id DESC LIMIT 1")
+        cursor.execute("SELECT id, nombre, campeonato_id, orden, activo, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate FROM copas WHERE activo = 1 ORDER BY orden ASC, id DESC LIMIT 1")
         row = cursor.fetchone()
         if row:
-            return Copa(id=row[0], nombre=row[1], campeonato_id=row[2], orden=row[3], activo=bool(row[4]), color=row[5])
+            return _a_copa(row)
         return None
 
     @staticmethod
-    def crear(nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None) -> int:
+    def crear(nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None,
+              modo_campeon: str = MODO_CAMPEON_DEFECTO, criterios_desempate: str = CRITERIOS_DEFECTO,
+              puntos_victoria: int = 3, puntos_empate: int = 1) -> int:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("INSERT INTO copas (nombre, campeonato_id, orden, activo, color) VALUES (?, ?, ?, ?, ?)", (nombre, campeonato_id, orden, 1 if activo else 0, color))
+        cursor.execute("INSERT INTO copas (nombre, campeonato_id, orden, activo, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                       (nombre, campeonato_id, orden, 1 if activo else 0, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate))
         con.commit()
         return cursor.lastrowid
 
@@ -630,10 +641,13 @@ class CopaRepository:
         con.commit()
 
     @staticmethod
-    def actualizar(copa_id: int, nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None):
+    def actualizar(copa_id: int, nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None,
+                   modo_campeon: str = MODO_CAMPEON_DEFECTO, criterios_desempate: str = CRITERIOS_DEFECTO,
+                   puntos_victoria: int = 3, puntos_empate: int = 1):
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("UPDATE copas SET nombre = ?, campeonato_id = ?, orden = ?, activo = ?, color = ? WHERE id = ?", (nombre, campeonato_id, orden, 1 if activo else 0, color, copa_id))
+        cursor.execute("UPDATE copas SET nombre = ?, campeonato_id = ?, orden = ?, activo = ?, color = ?, modo_campeon = ?, criterios_desempate = ?, puntos_victoria = ?, puntos_empate = ? WHERE id = ?",
+                       (nombre, campeonato_id, orden, 1 if activo else 0, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate, copa_id))
         con.commit()
 
     @staticmethod

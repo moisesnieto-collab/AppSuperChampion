@@ -282,9 +282,12 @@ def crear_tarjeta_campeon(
     
     # Botón para generar final del Día 2 (solo si estamos en Día 2 y es organizador)
     if es_organizador and on_generar_final and estado in ["CAMPEON_DEFINIDO", "EN_CURSO"]:
-        # Verificar si estamos en Día 2 (esto se puede inferir del contexto)
-        # Por ahora, agregamos el botón condicionalmente
-        pass
+        contenido.controls.append(ft.FilledButton(
+            "🏆 Generar Gran Final",
+            bgcolor=COLOR_AMBAR,
+            color=COLOR_TEXTO,
+            on_click=lambda e: on_generar_final(),
+        ))
     
     return ft.Container(
         content=ft.Column([

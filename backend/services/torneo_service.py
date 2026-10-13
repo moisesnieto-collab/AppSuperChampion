@@ -79,16 +79,19 @@ class TorneoService:
         nuevo_orden = len(todas) + 1
         cat_id = CategoriaRepository.crear(jornada_id, nombre_limpio, nuevo_orden)
 
-        # Crear grupos por defecto para la categoría
-        equipos_a = ["Real Dunalastair", "Cobresal", "Colo-Colo", "U. de Chile"]
-        g_a_id = GrupoRepository.crear(cat_id, jornada_id, "Grupo A", equipos_a)
-        TorneoService._generar_partidos_cuadrangular(cat_id, jornada_id, g_a_id, equipos_a)
-
-        equipos_b = ["U. Católica", "Palestino", "Audax Italiano", "Cobreloa"]
-        g_b_id = GrupoRepository.crear(cat_id, jornada_id, "Grupo B", equipos_b)
-        TorneoService._generar_partidos_cuadrangular(cat_id, jornada_id, g_b_id, equipos_b)
-
         return cat_id
+
+    @staticmethod
+    def copiar_categorias_de_ultima_jornada(torneo_id: int, nueva_jornada_id: int) -> int:
+        """Copia (sin grupos) las categorías de la última jornada anterior del torneo."""
+        anteriores = [j for j in JornadaRepository.obtener_por_torneo(torneo_id) if j.id != nueva_jornada_id]
+        if not anteriores:
+            return 0
+        ultima = max(anteriores, key=lambda j: (j.orden, j.id))
+        cats = CategoriaRepository.obtener_por_jornada(ultima.id)
+        for i, c in enumerate(cats, start=1):
+            CategoriaRepository.crear(nueva_jornada_id, c.nombre, i)
+        return len(cats)
 
     @staticmethod
     def eliminar_categoria(categoria_id: int, es_organizador: bool = False):
@@ -155,6 +158,10 @@ class TorneoService:
         """
         Retorna la estructura completa de grupos, partidos, tablas y estado de campeón para la categoría y jornada.
         """
+        copa = TorneoService.obtener_copa_de_jornada(jornada_id)
+        criterios = copa.lista_criterios() if copa else None
+        pv = copa.puntos_victoria if copa else 3
+        pe = copa.puntos_empate if copa else 1
         grupos = GrupoRepository.obtener_por_categoria_y_jornada(categoria_id, jornada_id)
         todos_partidos = PartidoRepository.obtener_por_categoria_y_jornada(categoria_id, jornada_id)
 
@@ -163,7 +170,7 @@ class TorneoService:
         resultado_grupos = []
         for g in grupos:
             partidos_g = [p for p in todos_partidos if p.grupo_id == g.id and not p.es_definicion]
-            tabla_g = TablaService.calcular_tabla(partidos_g, g.equipos)
+            tabla_g = TablaService.calcular_tabla(partidos_g, g.equipos, criterios, pv, pe)
             resultado_grupos.append({
                 "grupo": g,
                 "partidos": partidos_g,
@@ -171,14 +178,34 @@ class TorneoService:
             })
 
         estado_campeon = TorneoService._calcular_estado_campeon(
-            categoria_id, jornada_id, resultado_grupos, partidos_definicion
+            categoria_id, jornada_id, resultado_grupos, partidos_definicion, copa
         )
 
         return {
             "grupos": resultado_grupos,
             "partidos_definicion": partidos_definicion,
             "estado_campeon": estado_campeon,
+            "copa": copa,
         }
+
+    @staticmethod
+    def obtener_copa_de_jornada(jornada_id: int):
+        """Copa a la que pertenece la jornada (jornada -> torneo -> copa)."""
+        from backend.database.repositories import CopaRepository
+        j = JornadaRepository.obtener_por_id(jornada_id)
+        t = TorneoRepository.obtener_por_id(j.torneo_id) if j else None
+        return CopaRepository.obtener_por_id(t.copa_id) if t else None
+
+    @staticmethod
+    def _mejores_lideres(resultado_grupos, criterios, n=2):
+        """Líderes de cada grupo ordenados por puntos y criterios configurados."""
+        lideres = [g["tabla"][0] for g in resultado_grupos if g["tabla"]]
+        def clave(e):
+            k = [-e.pts]
+            for c in criterios or []:
+                k.append({"dg": -e.dg, "pg": -e.pg, "gf": -e.gf, "gc": e.gc}.get(c, 0))
+            return tuple(k) + (e.equipo,)
+        return sorted(lideres, key=clave)[:n]
 
     @staticmethod
     def guardar_marcador(partido_id: int, goles_local: int, goles_visita: int, es_organizador: bool = False):
@@ -235,14 +262,33 @@ class TorneoService:
         if len(grupos) < 2:
             return None
 
-        tabla_a = grupos[0]["tabla"]
-        tabla_b = grupos[1]["tabla"]
-
-        if not tabla_a or not tabla_b:
+        copa = datos.get("copa")
+        criterios = copa.lista_criterios() if copa else None
+        modo = copa.modo_campeon if copa else "final_lideres"
+        if any(not g["tabla"] for g in grupos):
             return None
 
-        lider_a = tabla_a[0].equipo
-        lider_b = tabla_b[0].equipo
+        if modo == "liguilla_lideres" and len(grupos) >= 3:
+            lideres = [g["tabla"][0].equipo for g in grupos]
+            if datos["partidos_definicion"]:
+                return datos["partidos_definicion"][0].id
+            g_id = grupos[0]["grupo"].id
+            primero = None
+            for i in range(len(lideres)):
+                for k in range(i + 1, len(lideres)):
+                    pid = PartidoRepository.crear(
+                        grupo_id=g_id, categoria_id=categoria_id, jornada_id=jornada_id,
+                        equipo_local=lideres[i], equipo_visita=lideres[k],
+                        goles_local=0, goles_visita=0, jugado=False, es_definicion=True, orden=100)
+                    primero = primero or pid
+            return primero
+
+        if len(grupos) >= 3:
+            top = TorneoService._mejores_lideres(grupos, criterios, 2)
+            lider_a, lider_b = top[0].equipo, top[1].equipo
+        else:
+            lider_a = grupos[0]["tabla"][0].equipo
+            lider_b = grupos[1]["tabla"][0].equipo
 
         # Revisar si ya existe
         for p in datos["partidos_definicion"]:
@@ -266,7 +312,7 @@ class TorneoService:
         return pid
 
     @staticmethod
-    def _calcular_estado_campeon(categoria_id: int, jornada_id: int, resultado_grupos: List[Dict[str, Any]], partidos_definicion: List[Partido]) -> Dict[str, Any]:
+    def _calcular_estado_campeon(categoria_id: int, jornada_id: int, resultado_grupos: List[Dict[str, Any]], partidos_definicion: List[Partido], copa=None) -> Dict[str, Any]:
         """
         Determina el estado del campeonato para la categoría y día:
         - Si hay partido de definición jugado -> Ganador de la definición es Campeón
@@ -276,6 +322,28 @@ class TorneoService:
             - Si hay empate en el 1° lugar (pts, dg, gf) -> 'EMPATE_REQUIERE_DESEMPATE'
         - Si aún hay partidos en juego -> 'EN_CURSO'
         """
+        modo = copa.modo_campeon if copa else "final_lideres"
+        criterios = copa.lista_criterios() if copa else None
+        pv = copa.puntos_victoria if copa else 3
+        pe = copa.puntos_empate if copa else 1
+
+        # Liguilla de líderes: la mini tabla de los partidos de definición decide
+        if modo == "liguilla_lideres" and len(partidos_definicion) > 1:
+            from dataclasses import replace
+            pendientes = [p for p in partidos_definicion if not p.jugado]
+            if pendientes:
+                return {"estado": "DESEMPATE_PENDIENTE", "equipo1": pendientes[0].equipo_local,
+                        "equipo2": pendientes[0].equipo_visita, "partido_id": pendientes[0].id,
+                        "motivo": f"Liguilla de líderes: faltan {len(pendientes)} partidos"}
+            partidos_liga = [replace(p, es_definicion=False) for p in partidos_definicion]
+            equipos = sorted({e for p in partidos_liga for e in (p.equipo_local, p.equipo_visita)})
+            mini = TablaService.calcular_tabla(partidos_liga, equipos, criterios, pv, pe)
+            if mini[0].empate_con_siguiente:
+                return {"estado": "EMPATE_DEFINICION", "campeon": None,
+                        "motivo": "Empate en la liguilla de líderes (requiere desempate manual)"}
+            return {"estado": "CAMPEON_DEFINIDO", "campeon": mini[0].equipo,
+                    "motivo": f"Ganador de la liguilla de líderes ({mini[0].pts} pts)"}
+
         # Si hay un partido de definición
         if partidos_definicion:
             partido_def = partidos_definicion[0]
@@ -333,31 +401,42 @@ class TorneoService:
             }
 
         # Todos los partidos de todos los grupos están jugados
-        # Analizar el primer grupo para determinar el campeón
-        grupo_principal = resultado_grupos[0]
-        tabla = grupo_principal["tabla"]
+        if modo == "tabla_unica" and len(resultado_grupos) > 1:
+            todos = [p for g in resultado_grupos for p in g["partidos"]]
+            equipos = [e.equipo for g in resultado_grupos for e in g["tabla"]]
+            tabla = TablaService.calcular_tabla(todos, equipos, criterios, pv, pe)
+            grupo_ref = resultado_grupos[0]
+        elif len(resultado_grupos) > 1:
+            # Final entre líderes / liguilla: falta generar la fase final
+            lideres = TorneoService._mejores_lideres(resultado_grupos, criterios, 1)
+            return {
+                "estado": "EN_CURSO",
+                "puntero_actual": lideres[0].equipo if lideres else "Por definir",
+                "partidos_jugados": f"{partidos_completados_todos}/{partidos_totales_todos}",
+                "motivo": "Fase de grupos finalizada: generar la fase final entre líderes de grupo"
+            }
+        else:
+            grupo_ref = resultado_grupos[0]
+            tabla = grupo_ref["tabla"]
 
         if not tabla or len(tabla) < 2:
             return {"estado": "EN_CURSO", "campeon": None, "motivo": "Torneo en desarrollo"}
 
         e1 = tabla[0]
         e2 = tabla[1]
-        # Lógica jerárquica: Puntos > Diferencia de Goles > Goles a Favor
-        if e1.pts > e2.pts or (e1.pts == e2.pts and e1.dg > e2.dg) or (e1.pts == e2.pts and e1.dg == e2.dg and e1.gf > e2.gf):
+        if not e1.empate_con_siguiente:
             return {
                 "estado": "CAMPEON_DEFINIDO",
                 "campeon": e1.equipo,
                 "motivo": f"Puntero exclusivo con {e1.pts} pts (DG: {e1.dg:+d})"
             }
-        else:
-            # Empate absoluto en primer lugar
-            return {
-                "estado": "EMPATE_REQUIERE_DESEMPATE",
-                "equipo1": e1.equipo,
-                "equipo2": e2.equipo,
-                "grupo_id": grupo_principal["grupo"].id,
-                "motivo": f"Empate absoluto en 1° lugar entre {e1.equipo} y {e2.equipo} ({e1.pts} pts, DG: {e1.dg:+d})"
-            }
+        return {
+            "estado": "EMPATE_REQUIERE_DESEMPATE",
+            "equipo1": e1.equipo,
+            "equipo2": e2.equipo,
+            "grupo_id": grupo_ref["grupo"].id,
+            "motivo": f"Empate absoluto en 1° lugar entre {e1.equipo} y {e2.equipo} ({e1.pts} pts, DG: {e1.dg:+d})"
+        }
 
     @staticmethod
     def _generar_partidos_cuadrangular(cat_id: int, jornada_id: int, grupo_id: int, equipos: list):

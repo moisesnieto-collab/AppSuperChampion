@@ -57,6 +57,28 @@ class TestSuperChampion(unittest.TestCase):
         # Reinicializar con datos por defecto
         inicializar_db()
     
+    @staticmethod
+    def _dejar_un_grupo(cat_id, jornada_id):
+        grupos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)["grupos"]
+        for g in grupos[1:]:
+            TorneoService.eliminar_grupo(g["grupo"].id, es_organizador=True)
+
+    def test_criterios_desempate_configurables(self):
+        from backend.models.partido import Partido
+        def pj(l, v, gl, gv):
+            return Partido(id=0, grupo_id=1, categoria_id=1, fecha_jornada_id=1, equipo_local=l,
+                           equipo_visita=v, goles_local=gl, goles_visita=gv, jugado=True)
+        # A y B empatan en puntos (3); A tiene mejor DG, B ganó el directo
+        partidos = [pj("A", "B", 0, 1), pj("A", "C", 5, 0), pj("A", "D", 0, 1), pj("B", "D", 0, 1)]
+        eq = ["A", "B", "C", "D"]
+        orden = lambda t: [e.equipo for e in t]
+        t1 = orden(TablaService.calcular_tabla(partidos, eq, ["dg", "gf", "h2h"]))
+        t2 = orden(TablaService.calcular_tabla(partidos, eq, ["h2h", "dg"]))
+        self.assertLess(t1.index("A"), t1.index("B"))
+        self.assertLess(t2.index("B"), t2.index("A"))
+        t3 = TablaService.calcular_tabla(partidos, eq, ["dg"], pts_victoria=2)
+        self.assertEqual(next(e for e in t3 if e.equipo == "A").pts, 2)
+
     def test_creacion_categoria_fixture(self):
         """Verificar la creación de categorías con grupos automáticos."""
         # Obtener torneo activo
@@ -97,11 +119,14 @@ class TestSuperChampion(unittest.TestCase):
         categorias = TorneoService.obtener_categorias_por_jornada(jornada_id)
         self.assertEqual(len(categorias), 7)
         
-        # Verificar que tiene grupos y partidos
+        # Una categoría nueva no crea grupos automáticamente
         datos = TorneoService.obtener_datos_categoria_dia(nueva_cat_id, jornada_id)
-        self.assertEqual(len(datos["grupos"]), 2)
-        
-        # Verificar que cada grupo tiene 6 partidos (cuadrangular)
+        self.assertEqual(len(datos["grupos"]), 0)
+
+        # Al crear un grupo de 4 equipos se genera el cuadrangular (6 partidos)
+        TorneoService.crear_grupo(nueva_cat_id, jornada_id, "Grupo A", ["A", "B", "C", "D"], es_organizador=True)
+        datos = TorneoService.obtener_datos_categoria_dia(nueva_cat_id, jornada_id)
+        self.assertEqual(len(datos["grupos"]), 1)
         for g_data in datos["grupos"]:
             self.assertEqual(len(g_data["partidos"]), 6)
     
@@ -247,6 +272,7 @@ class TestSuperChampion(unittest.TestCase):
         cat_id = categorias[0].id
         jornada_id = jornadas[0].id
         
+        self._dejar_un_grupo(cat_id, jornada_id)
         datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         
         # Simular todos los partidos de todos los grupos con un puntero claro
@@ -272,6 +298,7 @@ class TestSuperChampion(unittest.TestCase):
         cat_id = categorias[0].id
         jornada_id = jornadas[0].id
         
+        self._dejar_un_grupo(cat_id, jornada_id)
         datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         
         # Crear escenario de empate absoluto en primer lugar

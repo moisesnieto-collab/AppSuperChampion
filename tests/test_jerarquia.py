@@ -81,8 +81,10 @@ class TestJerarquia(unittest.TestCase):
         torneo_id = TorneoService.crear_torneo("T", "Copa", copa_id, es_organizador=True)
         jid = JornadaRepository.crear(torneo_id, "2099-01-01", "Día 1", 1, lugar="Cancha", horario="10:00")
         cat_id = TorneoService.crear_categoria(jid, "Cat E2E", es_organizador=True)
+        self.assertEqual(TorneoService.obtener_datos_categoria_dia(cat_id, jid)["grupos"], [])
+        TorneoService.crear_grupo(cat_id, jid, "Grupo A", ["A", "B", "C", "D"], es_organizador=True)
         grupos = TorneoService.obtener_datos_categoria_dia(cat_id, jid)["grupos"]
-        self.assertEqual(len(grupos), 2)
+        self.assertEqual(len(grupos), 1)
         partido = grupos[0]["partidos"][0]
         TorneoService.guardar_marcador(partido.id, 2, 1, es_organizador=True)
         CampeonatoService.asignar_permiso(camp_id, 1, "organizador")

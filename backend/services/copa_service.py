@@ -21,8 +21,8 @@ class CopaService:
         return CopaRepository.obtener_activo()
 
     @staticmethod
-    def crear_copa(nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None) -> int:
-        return CopaRepository.crear(nombre, campeonato_id, orden, activo, color)
+    def crear_copa(nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None, **reglas) -> int:
+        return CopaRepository.crear(nombre, campeonato_id, orden, activo, color, **reglas)
 
     @staticmethod
     def actualizar_copa_activo(copa_id: int, activo: bool):
@@ -41,3 +41,13 @@ class CopaService:
             raise ValueError("No se puede eliminar la copa porque tiene torneos asociados")
         
         CopaRepository.eliminar(copa_id)
+
+    @staticmethod
+    def limpiar_partidos_definicion(copa_id: int):
+        """Elimina los partidos de definición (final/desempate) de toda la Copa."""
+        from backend.database.repositories import TorneoRepository, PartidoRepository
+        from backend.services.torneo_service import TorneoService
+        for t in TorneoRepository.obtener_por_copa(copa_id):
+            for j in TorneoService.obtener_jornadas_por_torneo(t.id):
+                for c in TorneoService.obtener_categorias_por_jornada(j.id):
+                    PartidoRepository.eliminar_partidos_definicion(c.id, j.id)

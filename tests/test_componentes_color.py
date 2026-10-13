@@ -107,3 +107,27 @@ class TestComponentesColor(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBotonGranFinal(unittest.TestCase):
+    def _hay_boton(self, ctrl):
+        import flet as ft
+        if isinstance(ctrl, ft.FilledButton) and "Gran Final" in str(ctrl.content):
+            return True
+        hijos = []
+        for attr in ("content", "controls"):
+            v = getattr(ctrl, attr, None)
+            if isinstance(v, list):
+                hijos += v
+            elif v is not None and not isinstance(v, str):
+                hijos.append(v)
+        return any(self._hay_boton(h) for h in hijos)
+
+    def test_boton_segun_organizador(self):
+        for es_org in (True, False):
+            tarjeta = crear_tarjeta_campeon(
+                estado_campeon={"estado": "EN_CURSO"},
+                es_organizador=es_org,
+                on_generar_final=lambda: None,
+            )
+            self.assertEqual(self._hay_boton(tarjeta), es_org)
