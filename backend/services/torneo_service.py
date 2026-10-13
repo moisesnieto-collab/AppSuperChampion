@@ -38,10 +38,16 @@ class TorneoService:
         return TorneoRepository.obtener_activo()
 
     @staticmethod
-    def crear_torneo(nombre: str, tipo: str, anio: int, es_organizador: bool = False) -> int:
+    def crear_torneo(nombre: str, tipo: str, anio: int, orden: int = 0, es_organizador: bool = False) -> int:
         if not es_organizador:
             raise PermissionError("Solo el organizador puede crear torneos")
-        return TorneoRepository.crear(nombre, tipo, anio)
+        return TorneoRepository.crear(nombre, tipo, anio, orden)
+
+    @staticmethod
+    def actualizar_orden_torneo(torneo_id: int, orden: int, es_organizador: bool = False):
+        if not es_organizador:
+            raise PermissionError("Solo el organizador puede modificar el orden de torneos")
+        TorneoRepository.actualizar_orden(torneo_id, orden)
 
     @staticmethod
     def eliminar_torneo(torneo_id: int, es_organizador: bool = False):

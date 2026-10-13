@@ -14,12 +14,12 @@ class TorneoRepository:
     def obtener_todos() -> List[Torneo]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, tipo, anio, activo, fecha_inicio, fecha_fin FROM torneos ORDER BY anio DESC, id DESC")
+        cursor.execute("SELECT id, nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin FROM torneos ORDER BY orden ASC, anio DESC, id DESC")
         rows = cursor.fetchall()
         return [
             Torneo(
-                id=r[0], nombre=r[1], tipo=r[2], anio=r[3],
-                activo=bool(r[4]), fecha_inicio=r[5], fecha_fin=r[6]
+                id=r[0], nombre=r[1], tipo=r[2], anio=r[3], orden=r[4],
+                activo=bool(r[5]), fecha_inicio=r[6], fecha_fin=r[7]
             )
             for r in rows
         ]
@@ -29,14 +29,14 @@ class TorneoRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, nombre, tipo, anio, activo, fecha_inicio, fecha_fin FROM torneos WHERE id = ?",
+            "SELECT id, nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE id = ?",
             (torneo_id,)
         )
         row = cursor.fetchone()
         if row:
             return Torneo(
-                id=row[0], nombre=row[1], tipo=row[2], anio=row[3],
-                activo=bool(row[4]), fecha_inicio=row[5], fecha_fin=row[6]
+                id=row[0], nombre=row[1], tipo=row[2], anio=row[3], orden=row[4],
+                activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7]
             )
         return None
 
@@ -45,23 +45,23 @@ class TorneoRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, nombre, tipo, anio, activo, fecha_inicio, fecha_fin FROM torneos WHERE activo = 1 ORDER BY anio DESC, id DESC LIMIT 1"
+            "SELECT id, nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE activo = 1 ORDER BY orden ASC, anio DESC, id DESC LIMIT 1"
         )
         row = cursor.fetchone()
         if row:
             return Torneo(
-                id=row[0], nombre=row[1], tipo=row[2], anio=row[3],
-                activo=bool(row[4]), fecha_inicio=row[5], fecha_fin=row[6]
+                id=row[0], nombre=row[1], tipo=row[2], anio=row[3], orden=row[4],
+                activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7]
             )
         return None
 
     @staticmethod
-    def crear(nombre: str, tipo: str, anio: int, activo: bool = True, fecha_inicio: str = None, fecha_fin: str = None) -> int:
+    def crear(nombre: str, tipo: str, anio: int, orden: int = 0, activo: bool = True, fecha_inicio: str = None, fecha_fin: str = None) -> int:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "INSERT INTO torneos (nombre, tipo, anio, activo, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?, ?, ?)",
-            (nombre, tipo, anio, 1 if activo else 0, fecha_inicio, fecha_fin)
+            "INSERT INTO torneos (nombre, tipo, anio, orden, activo, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (nombre, tipo, anio, orden, 1 if activo else 0, fecha_inicio, fecha_fin)
         )
         con.commit()
         return cursor.lastrowid
@@ -73,6 +73,16 @@ class TorneoRepository:
         cursor.execute(
             "UPDATE torneos SET activo = ? WHERE id = ?",
             (1 if activo else 0, torneo_id)
+        )
+        con.commit()
+
+    @staticmethod
+    def actualizar_orden(torneo_id: int, orden: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute(
+            "UPDATE torneos SET orden = ? WHERE id = ?",
+            (orden, torneo_id)
         )
         con.commit()
 

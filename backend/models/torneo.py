@@ -8,6 +8,7 @@ class Torneo:
     nombre: str
     tipo: str  # "Apertura" o "Clausura"
     anio: int
+    orden: int = 0
     activo: bool = True
     fecha_inicio: str = None
     fecha_fin: str = None
@@ -18,6 +19,7 @@ class Torneo:
             "nombre": self.nombre,
             "tipo": self.tipo,
             "anio": self.anio,
+            "orden": self.orden,
             "activo": self.activo,
             "fecha_inicio": self.fecha_inicio,
             "fecha_fin": self.fecha_fin,
@@ -30,6 +32,7 @@ class Torneo:
             nombre=data.get("nombre", ""),
             tipo=data.get("tipo", ""),
             anio=data.get("anio", datetime.now().year),
+            orden=data.get("orden", 0),
             activo=bool(data.get("activo", True)),
             fecha_inicio=data.get("fecha_inicio"),
             fecha_fin=data.get("fecha_fin"),

@@ -66,12 +66,18 @@ def crear_selector_categoria_y_dia(
             value=str(datetime.now().year),
             input_filter=ft.NumbersOnlyInputFilter(),
         )
+        tf_orden = ft.TextField(
+            label="Orden de presentación (0 para el último)",
+            value="0",
+            input_filter=ft.NumbersOnlyInputFilter(),
+        )
         texto_error = ft.Text("", color=COLOR_ROJO, size=12)
 
         def guardar_torneo(ev):
             nom = tf_nombre.value.strip()
             tipo = tf_tipo.value.strip()
             anio_str = tf_anio.value.strip()
+            orden_str = tf_orden.value.strip()
             
             if not nom or not tipo or not anio_str:
                 texto_error.value = "❌ Todos los campos son obligatorios"
@@ -80,7 +86,8 @@ def crear_selector_categoria_y_dia(
             
             try:
                 anio = int(anio_str)
-                nuevo_id = TorneoService.crear_torneo(nom, tipo, anio, es_organizador=True)
+                orden = int(orden_str) if orden_str else 0
+                nuevo_id = TorneoService.crear_torneo(nom, tipo, anio, orden, es_organizador=True)
                 estado["torneo_activo_id"] = nuevo_id
                 estado["jornada_activa_id"] = None
                 estado["categoria_activa_id"] = None
@@ -106,6 +113,7 @@ def crear_selector_categoria_y_dia(
                 tf_nombre,
                 tf_tipo,
                 tf_anio,
+                tf_orden,
                 texto_error,
             ], spacing=10, tight=True, width=340),
             actions=[
@@ -167,17 +175,88 @@ def crear_selector_categoria_y_dia(
         dlg_eliminar_torneo.open = True
         page.update()
 
+    def abrir_dialogo_editar_orden_torneo(torneo_id: int, nombre_actual: str, orden_actual: int):
+        tf_orden = ft.TextField(
+            label="Orden de presentación (menor número aparece primero)",
+            value=str(orden_actual),
+            input_filter=ft.NumbersOnlyInputFilter(),
+        )
+        texto_error = ft.Text("", color=COLOR_ROJO, size=12)
+
+        def guardar_orden(ev):
+            orden_str = tf_orden.value.strip()
+            if not orden_str:
+                texto_error.value = "❌ El orden es obligatorio"
+                page.update()
+                return
+            
+            try:
+                orden = int(orden_str)
+                TorneoService.actualizar_orden_torneo(torneo_id, orden, es_organizador=True)
+                dlg_editar_orden.open = False
+                on_cambio_seleccion()
+                page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"✅ Orden del torneo '{nombre_actual}' actualizado."),
+                    bgcolor=COLOR_VERDE
+                )
+                page.snack_bar.open = True
+                page.update()
+            except Exception as err:
+                texto_error.value = f"❌ {str(err)}"
+                page.update()
+
+        dlg_editar_orden = ft.AlertDialog(
+            title=ft.Row([
+                ft.Icon(ft.Icons.EDIT, color=COLOR_CELESTE, size=22),
+                ft.Text("Editar Orden del Torneo", weight=ft.FontWeight.BOLD, size=16),
+            ]),
+            content=ft.Column([
+                ft.Text(f"Torneo: {nombre_actual}"),
+                tf_orden,
+                texto_error,
+            ], spacing=10, tight=True, width=340),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda ev: setattr(dlg_editar_orden, 'open', False)),
+                ft.FilledButton("Guardar", bgcolor=COLOR_CELESTE, color=COLOR_TEXTO, on_click=guardar_orden),
+            ],
+            bgcolor=COLOR_TARJETA,
+        )
+        if dlg_editar_orden not in page.overlay:
+            page.overlay.append(dlg_editar_orden)
+        dlg_editar_orden.open = True
+        page.update()
+
     chips_torneos = []
     for t in torneos:
         es_activo = (t.id == torneo_activo_id)
-        chips_torneos.append(
-            ft.Container(
-                content=ft.Text(
+        chip_content = ft.Text(
+            f"{t.nombre} ({t.tipo})",
+            size=12,
+            weight=ft.FontWeight.BOLD if es_activo else ft.FontWeight.NORMAL,
+            color=COLOR_TEXTO if es_activo else COLOR_SUBTEXTO,
+        )
+        
+        if es_organizador:
+            chip_content = ft.Row([
+                ft.Text(
                     f"{t.nombre} ({t.tipo})",
                     size=12,
                     weight=ft.FontWeight.BOLD if es_activo else ft.FontWeight.NORMAL,
                     color=COLOR_TEXTO if es_activo else COLOR_SUBTEXTO,
+                    expand=True
                 ),
+                ft.IconButton(
+                    icon=ft.Icons.EDIT,
+                    icon_color=COLOR_CELESTE,
+                    icon_size=14,
+                    tooltip="Editar orden",
+                    on_click=lambda ev, tid=t.id, nom=t.nombre, ord=t.orden: abrir_dialogo_editar_orden_torneo(tid, nom, ord)
+                )
+            ], spacing=4)
+        
+        chips_torneos.append(
+            ft.Container(
+                content=chip_content,
                 bgcolor=COLOR_CELESTE_BOTON if es_activo else COLOR_TARJETA_SEGUNDARIA,
                 border=ft.Border.all(1, COLOR_CELESTE if es_activo else COLOR_BORDE),
                 border_radius=8,
@@ -337,69 +416,64 @@ def crear_selector_categoria_y_dia(
     if torneo_activo_id:
         jornadas = TorneoService.obtener_jornadas_por_torneo(torneo_activo_id)
 
-    # Crear chips de jornadas con fechas
+    # Crear chips de jornadas - formato minimalista para móviles con scroll
     chips_jornadas = []
     for j in jornadas:
         es_jornada_activa = (j.id == jornada_activa_id)
-        # Formatear fecha DD-MM-YYYY
+        # Formatear fecha completa DD-MM-YYYY
         fecha_obj = datetime.fromisoformat(j.fecha)
         fecha_formateada = fecha_obj.strftime("%d-%m-%Y")
+        
+        # Mostrar nombre + fecha, o solo fecha si el nombre es muy largo
+        if len(j.nombre) > 15:
+            texto_chip = fecha_formateada
+        else:
+            texto_chip = f"{j.nombre} {fecha_formateada}"
+        
         chips_jornadas.append(
             ft.Container(
-                content=ft.Row([
-                    ft.Icon(ft.Icons.CALENDAR_TODAY, size=14, color=COLOR_TEXTO if es_jornada_activa else COLOR_SUBTEXTO),
-                    ft.Text(f"{j.nombre} - {fecha_formateada}", size=12, weight=ft.FontWeight.BOLD if es_jornada_activa else ft.FontWeight.NORMAL, color=COLOR_TEXTO if es_jornada_activa else COLOR_SUBTEXTO),
-                ], spacing=6),
+                content=ft.Text(texto_chip, size=9, weight=ft.FontWeight.BOLD if es_jornada_activa else ft.FontWeight.NORMAL, color=COLOR_TEXTO if es_jornada_activa else COLOR_SUBTEXTO),
                 bgcolor=COLOR_CELESTE_BOTON if es_jornada_activa else COLOR_TARJETA_SEGUNDARIA,
                 border=ft.Border.all(1, COLOR_CELESTE if es_jornada_activa else COLOR_BORDE),
-                border_radius=8,
-                padding=14,
+                border_radius=4,
+                padding=4,
                 on_click=lambda ev, jid=j.id: seleccionar_jornada(jid),
                 ink=True,
             )
         )
 
-    # Botones de gestión de jornadas (solo organizador)
+    # Botones de gestión de jornadas (solo organizador) - más compactos
     btn_crear_jornada = None
     btn_eliminar_jornada = None
     btn_buscar_jornada = None
 
     if es_organizador:
         btn_crear_jornada = ft.Container(
-            content=ft.Row([
-                ft.Icon(ft.Icons.ADD, size=12, color=COLOR_VERDE),
-                ft.Text("Nuevo Día", size=10, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
-            ], spacing=4),
+            content=ft.Icon(ft.Icons.ADD, size=10, color=COLOR_VERDE),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_VERDE),
-            border_radius=6,
-            padding=8,
+            border_radius=4,
+            padding=4,
             on_click=lambda ev: on_crear_jornada(ev) if on_crear_jornada else None,
             ink=True,
         )
 
         btn_eliminar_jornada = ft.Container(
-            content=ft.Row([
-                ft.Icon(ft.Icons.DELETE, size=12, color=COLOR_ROJO),
-                ft.Text("Eliminar", size=10, color=COLOR_ROJO, weight=ft.FontWeight.BOLD),
-            ], spacing=4),
+            content=ft.Icon(ft.Icons.DELETE, size=10, color=COLOR_ROJO),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_ROJO),
-            border_radius=6,
-            padding=8,
+            border_radius=4,
+            padding=4,
             on_click=lambda ev: on_eliminar_jornada(ev) if on_eliminar_jornada else None,
             ink=True,
         )
 
         btn_buscar_jornada = ft.Container(
-            content=ft.Row([
-                ft.Icon(ft.Icons.SEARCH, size=12, color=COLOR_CELESTE),
-                ft.Text("Buscar", size=10, color=COLOR_CELESTE, weight=ft.FontWeight.BOLD),
-            ], spacing=4),
+            content=ft.Icon(ft.Icons.SEARCH, size=10, color=COLOR_CELESTE),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_CELESTE),
-            border_radius=6,
-            padding=8,
+            border_radius=4,
+            padding=4,
             on_click=lambda ev: on_buscar_jornada(ev) if on_buscar_jornada else None,
             ink=True,
         )
@@ -540,15 +614,19 @@ def crear_selector_categoria_y_dia(
 
             ft.Divider(color=COLOR_BORDE, height=1),
 
-            # Fila 2: Selector de Jornada (Fecha)
-            ft.Row([
-                ft.Icon(ft.Icons.CALENDAR_TODAY, color=COLOR_CELESTE, size=18),
-                ft.Text("Jornada:", size=13, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
-                ft.Row(chips_jornadas, spacing=6),
-                btn_crear_jornada if btn_crear_jornada else ft.Container(width=0, height=0),
-                btn_buscar_jornada if btn_buscar_jornada else ft.Container(width=0, height=0),
-                btn_eliminar_jornada if btn_eliminar_jornada else ft.Container(width=0, height=0),
-            ], wrap=True, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            # Fila 2: Selector de Jornada (Fecha) - wrap para móviles
+            ft.Column([
+                ft.Row([
+                    ft.Icon(ft.Icons.CALENDAR_TODAY, color=COLOR_CELESTE, size=12),
+                    ft.Text("Jornada:", size=10, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
+                ], spacing=4),
+                ft.Row(chips_jornadas, wrap=True, spacing=3),
+                ft.Row([
+                    btn_crear_jornada if btn_crear_jornada else ft.Container(width=0, height=0),
+                    btn_buscar_jornada if btn_buscar_jornada else ft.Container(width=0, height=0),
+                    btn_eliminar_jornada if btn_eliminar_jornada else ft.Container(width=0, height=0),
+                ], spacing=4),
+            ], spacing=4),
 
             ft.Divider(color=COLOR_BORDE, height=1),
 

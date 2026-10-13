@@ -18,6 +18,7 @@ def inicializar_db():
         nombre TEXT NOT NULL,
         tipo TEXT NOT NULL,
         anio INTEGER NOT NULL,
+        orden INTEGER DEFAULT 0,
         activo INTEGER DEFAULT 1,
         fecha_inicio DATE,
         fecha_fin DATE
