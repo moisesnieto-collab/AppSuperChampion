@@ -3,7 +3,8 @@ from typing import List, Callable, Optional
 from datetime import datetime
 from config.constants import (
     COLOR_TARJETA, COLOR_BORDE, COLOR_CELESTE, COLOR_CELESTE_BOTON,
-    COLOR_TEXTO, COLOR_SUBTEXTO, COLOR_VERDE, COLOR_AMBAR, COLOR_ROJO, COLOR_TARJETA_SEGUNDARIA, COLOR_FONDO
+    COLOR_TEXTO, COLOR_SUBTEXTO, COLOR_VERDE, COLOR_AMBAR, COLOR_ROJO, COLOR_TARJETA_SEGUNDARIA, COLOR_FONDO,
+    mezclar_color, oscurecer_color
 )
 from backend.models.categoria import Categoria
 from backend.models.torneo import Torneo
@@ -540,7 +541,7 @@ def crear_selector_categoria_y_dia(
         return ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADD, size=14, color=COLOR_VERDE),
-                ft.Text(texto, size=11, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
+                ft.Text(texto, size=12, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
             ], spacing=4),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_VERDE),
@@ -554,7 +555,7 @@ def crear_selector_categoria_y_dia(
         return ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.DELETE, size=14, color=COLOR_ROJO),
-                ft.Text(texto, size=11, color=COLOR_ROJO, weight=ft.FontWeight.BOLD),
+                ft.Text(texto, size=12, color=COLOR_ROJO, weight=ft.FontWeight.BOLD),
             ], spacing=4),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_ROJO),
@@ -762,7 +763,7 @@ def crear_selector_categoria_y_dia(
             ft.Container(
                 content=ft.Row([
                     ft.Icon(ft.Icons.ADD, size=14, color=COLOR_VERDE),
-                    ft.Text("Nuevo Torneo", size=11, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
+                    ft.Text("Nuevo Torneo", size=12, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
                 ], spacing=4),
                 bgcolor=COLOR_TARJETA_SEGUNDARIA,
                 border=ft.Border.all(1, COLOR_VERDE),
@@ -779,7 +780,7 @@ def crear_selector_categoria_y_dia(
             ft.Container(
                 content=ft.Row([
                     ft.Icon(ft.Icons.DELETE, size=14, color=COLOR_ROJO),
-                    ft.Text("Eliminar", size=11, color=COLOR_ROJO, weight=ft.FontWeight.BOLD),
+                    ft.Text("Eliminar", size=12, color=COLOR_ROJO, weight=ft.FontWeight.BOLD),
                 ], spacing=4),
                 bgcolor=COLOR_TARJETA_SEGUNDARIA,
                 border=ft.Border.all(1, COLOR_ROJO),
@@ -879,7 +880,7 @@ def crear_selector_categoria_y_dia(
             ft.Container(
                 content=ft.Row([
                     ft.Icon(ft.Icons.ADD, size=14, color=COLOR_VERDE),
-                    ft.Text("Nueva Cat", size=11, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
+                    ft.Text("Nueva Cat", size=12, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
                 ], spacing=4),
                 bgcolor=COLOR_TARJETA_SEGUNDARIA,
                 border=ft.Border.all(1, COLOR_VERDE),
@@ -930,11 +931,11 @@ def crear_selector_categoria_y_dia(
         
         chips_jornadas.append(
             ft.Container(
-                content=ft.Text(texto_chip, size=9, weight=ft.FontWeight.BOLD if es_jornada_activa else ft.FontWeight.NORMAL, color=COLOR_TEXTO if es_jornada_activa else COLOR_SUBTEXTO),
+                content=ft.Text(texto_chip, size=12, weight=ft.FontWeight.BOLD if es_jornada_activa else ft.FontWeight.NORMAL, color=COLOR_TEXTO if es_jornada_activa else COLOR_SUBTEXTO),
                 bgcolor=COLOR_CELESTE_BOTON if es_jornada_activa else COLOR_TARJETA_SEGUNDARIA,
                 border=ft.Border.all(1, COLOR_CELESTE if es_jornada_activa else COLOR_BORDE),
-                border_radius=4,
-                padding=4,
+                border_radius=8,
+                padding=12,
                 on_click=lambda ev, jid=j.id: seleccionar_jornada(jid),
                 ink=True,
             )
@@ -947,7 +948,7 @@ def crear_selector_categoria_y_dia(
 
     if es_organizador:
         btn_crear_jornada = ft.Container(
-            content=ft.Icon(ft.Icons.ADD, size=10, color=COLOR_VERDE),
+            content=ft.Icon(ft.Icons.ADD, size=12, color=COLOR_VERDE),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_VERDE),
             border_radius=4,
@@ -957,7 +958,7 @@ def crear_selector_categoria_y_dia(
         )
 
         btn_eliminar_jornada = ft.Container(
-            content=ft.Icon(ft.Icons.DELETE, size=10, color=COLOR_ROJO),
+            content=ft.Icon(ft.Icons.DELETE, size=12, color=COLOR_ROJO),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_ROJO),
             border_radius=4,
@@ -967,7 +968,7 @@ def crear_selector_categoria_y_dia(
         )
 
         btn_buscar_jornada = ft.Container(
-            content=ft.Icon(ft.Icons.SEARCH, size=10, color=COLOR_CELESTE),
+            content=ft.Icon(ft.Icons.SEARCH, size=12, color=COLOR_CELESTE),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_CELESTE),
             border_radius=4,
@@ -996,7 +997,7 @@ def crear_selector_categoria_y_dia(
         ft.Container(
             content=ft.Text(
                 "Todos",
-                size=11,
+                size=12,
                 weight=ft.FontWeight.BOLD if grupo_filtro == "Todos" else ft.FontWeight.NORMAL,
                 color=COLOR_TEXTO if grupo_filtro == "Todos" else COLOR_SUBTEXTO
             ),
@@ -1015,7 +1016,7 @@ def crear_selector_categoria_y_dia(
         btn_crear_grupo = ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADD, size=12, color=COLOR_VERDE),
-                ft.Text("Nuevo Grupo", size=10, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
+                ft.Text("Nuevo Grupo", size=12, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
             ], spacing=4),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_VERDE),
@@ -1038,7 +1039,7 @@ def crear_selector_categoria_y_dia(
                     content=ft.Row([
                         ft.Text(
                             nombre_grupo,
-                            size=11,
+                            size=12,
                             weight=ft.FontWeight.BOLD if es_g_activo else ft.FontWeight.NORMAL,
                             color=COLOR_TEXTO if es_g_activo else COLOR_SUBTEXTO,
                             expand=True
@@ -1072,7 +1073,7 @@ def crear_selector_categoria_y_dia(
                 ft.Container(
                     content=ft.Text(
                         nombre_grupo,
-                        size=11,
+                        size=12,
                         weight=ft.FontWeight.BOLD if es_g_activo else ft.FontWeight.NORMAL,
                         color=COLOR_TEXTO if es_g_activo else COLOR_SUBTEXTO
                     ),
@@ -1091,7 +1092,7 @@ def crear_selector_categoria_y_dia(
         btn_crear_grupo = ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADD, size=12, color=COLOR_VERDE),
-                ft.Text("Nuevo Grupo", size=10, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
+                ft.Text("Nuevo Grupo", size=12, color=COLOR_VERDE, weight=ft.FontWeight.BOLD),
             ], spacing=4),
             bgcolor=COLOR_TARJETA_SEGUNDARIA,
             border=ft.Border.all(1, COLOR_VERDE),
@@ -1137,20 +1138,25 @@ def crear_selector_categoria_y_dia(
     page.bgcolor = color_copa or COLOR_FONDO
 
     if color_copa:
-        def _mezclar(hexa, f):
-            h = hexa.lstrip("#")
-            r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
-            return "#%02X%02X%02X" % tuple(int(c + (255 - c) * f) for c in (r, g, b))
+        def _texto_claro(ctrl):
+            if isinstance(ctrl, ft.Text):
+                if ctrl.color == COLOR_SUBTEXTO:
+                    ctrl.color = COLOR_TEXTO
+            elif isinstance(ctrl, ft.Row):
+                for sub in ctrl.controls:
+                    _texto_claro(sub)
 
-        tono_activo = _mezclar(color_copa, 0.35)
-        tono_inactivo = _mezclar(color_copa, 0.12)
+        tono_activo = mezclar_color(color_copa, 0.22)
+        tono_inactivo = oscurecer_color(color_copa, 0.30)
         for ch in (chips_copas + chips_torneos + chips_jornadas + chips_categorias + chips_grupos
                    + [btn_crear_jornada, btn_buscar_jornada, btn_eliminar_jornada, btn_crear_grupo]):
             if isinstance(ch, ft.Container):
                 if ch.bgcolor == COLOR_CELESTE_BOTON:
                     ch.bgcolor = tono_activo
+                    _texto_claro(ch.content)
                 elif ch.bgcolor in (COLOR_TARJETA_SEGUNDARIA, COLOR_TARJETA):
                     ch.bgcolor = tono_inactivo
+                    _texto_claro(ch.content)
 
     return ft.Container(
         content=ft.Column([

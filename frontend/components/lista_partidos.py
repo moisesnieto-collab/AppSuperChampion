@@ -1,8 +1,9 @@
 import flet as ft
-from typing import List, Callable
+from typing import List, Callable, Optional
 from config.constants import (
     COLOR_TARJETA, COLOR_BORDE, COLOR_CELESTE, COLOR_TEXTO,
-    COLOR_SUBTEXTO, COLOR_VERDE, COLOR_ROJO, COLOR_AMBAR, COLOR_TARJETA_SEGUNDARIA
+    COLOR_SUBTEXTO, COLOR_VERDE, COLOR_ROJO, COLOR_AMBAR, COLOR_TARJETA_SEGUNDARIA,
+    oscurecer_color
 )
 from backend.models.partido import Partido
 
@@ -12,13 +13,16 @@ def crear_lista_partidos(
     partidos: List[Partido],
     es_organizador: bool,
     on_guardar_marcador: Callable[[int, int, int], None],
-    on_reiniciar_marcador: Callable[[int], None]
+    on_reiniciar_marcador: Callable[[int], None],
+    color_copa: Optional[str] = None
 ) -> ft.Container:
     """
     Renderiza la lista de partidos del grupo con marcadores.
     - Modo consulta: visualización solo lectura
     - Modo organizador: inputs editables + botón guardar
     """
+    bg_tarjeta = color_copa or COLOR_TARJETA
+    bg_secundaria = oscurecer_color(color_copa, 0.30) if color_copa else COLOR_TARJETA_SEGUNDARIA
     
     filas_partidos = []
     
@@ -90,7 +94,7 @@ def crear_lista_partidos(
                                     ),
                                 ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
                                 padding=10,
-                                bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                                bgcolor=bg_secundaria,
                                 border_radius=8,
                             ),
                             ft.Container(
@@ -174,7 +178,7 @@ def crear_lista_partidos(
                                     tf_goles_visita,
                                 ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
                                 padding=10,
-                                bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                                bgcolor=bg_secundaria,
                                 border_radius=8,
                             ),
                             ft.Container(
@@ -247,7 +251,7 @@ def crear_lista_partidos(
                         size=11,
                         color=COLOR_SUBTEXTO
                     ),
-                    bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                    bgcolor=bg_secundaria,
                     padding=8,
                     border_radius=12
                 )
@@ -256,7 +260,7 @@ def crear_lista_partidos(
             ft.Column(filas_partidos, spacing=8),
         ], spacing=8),
         padding=12,
-        bgcolor=COLOR_TARJETA,
+        bgcolor=bg_tarjeta,
         border_radius=10,
         border=ft.Border.all(1, COLOR_BORDE)
     )

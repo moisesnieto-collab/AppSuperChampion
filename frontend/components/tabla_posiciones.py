@@ -1,15 +1,18 @@
 import flet as ft
-from typing import List
+from typing import List, Optional
 from config.constants import (
     COLOR_TARJETA, COLOR_BORDE, COLOR_CELESTE, COLOR_TEXTO, 
-    COLOR_SUBTEXTO, COLOR_VERDE, COLOR_DORADO, COLOR_ROJO, COLOR_TARJETA_SEGUNDARIA
+    COLOR_SUBTEXTO, COLOR_VERDE, COLOR_DORADO, COLOR_ROJO, COLOR_TARJETA_SEGUNDARIA,
+    oscurecer_color
 )
 from backend.models.tabla import EstadisticaEquipo
 
-def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo]) -> ft.Container:
+def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo], color_copa: Optional[str] = None) -> ft.Container:
     """
     Renderiza la tabla de posiciones oficial del grupo con estadísticas completas y líder destacado.
     """
+    bg_tarjeta = color_copa or COLOR_TARJETA
+    bg_secundaria = oscurecer_color(color_copa, 0.30) if color_copa else COLOR_TARJETA_SEGUNDARIA
     filas = []
 
     for idx, stat in enumerate(tabla, start=1):
@@ -58,7 +61,7 @@ def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo]) ->
                                 weight=ft.FontWeight.BOLD,
                                 color=COLOR_CELESTE if not es_lider else COLOR_DORADO,
                             ),
-                            bgcolor=COLOR_TARJETA_SEGUNDARIA if not es_lider else "#3B2D05",
+                            bgcolor=bg_secundaria if not es_lider else "#3B2D05",
                             padding=8,
                             border_radius=6,
                         )
@@ -98,7 +101,7 @@ def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo]) ->
             ft.ListView([tabla_widget]),
         ], spacing=8),
         padding=12,
-        bgcolor=COLOR_TARJETA,
+        bgcolor=bg_tarjeta,
         border_radius=10,
         border=ft.Border.all(1, COLOR_BORDE),
     )

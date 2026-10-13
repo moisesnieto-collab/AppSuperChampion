@@ -654,6 +654,8 @@ def main(page: ft.Page):
             )
             header_nuevo = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin)
             header.content = header_nuevo.content
+            header.bgcolor = header_nuevo.bgcolor
+            header.padding = header_nuevo.padding
             contenido_principal.controls = []
             page.update()
             return
@@ -676,8 +678,14 @@ def main(page: ft.Page):
         selector_container.content = selector_nuevo
 
         # Actualizar header
-        header_nuevo = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin)
+        _cid = estado.get("copa_activa_id")
+        _copa = CopaService.obtener_copa_por_id(_cid) if _cid else None
+        header_nuevo = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin,
+                                    color_copa=_copa.color if _copa and _copa.color else None,
+                                    compacto=True)
         header.content = header_nuevo.content
+        header.bgcolor = header_nuevo.bgcolor
+        header.padding = header_nuevo.padding
 
         if not cat_id:
             contenido_principal.controls = [
@@ -711,6 +719,11 @@ def main(page: ft.Page):
         partidos_definicion = datos["partidos_definicion"]
         estado_campeon = datos["estado_campeon"]
 
+        # Obtener color de la copa activa
+        copa_activa_id = estado.get("copa_activa_id")
+        copa_activa = CopaService.obtener_copa_por_id(copa_activa_id) if copa_activa_id else None
+        color_copa = copa_activa.color if copa_activa and copa_activa.color else None
+
         # Filtrar grupos según el filtro seleccionado
         if grupo_filtro != "Todos":
             grupos = [g for g in grupos if g["grupo"].nombre == grupo_filtro]
@@ -724,7 +737,8 @@ def main(page: ft.Page):
                 estado_campeon=estado_campeon,
                 es_organizador=es_org,
                 on_generar_desempate=on_generar_desempate,
-                on_generar_final=on_generar_final
+                on_generar_final=on_generar_final,
+                color_copa=color_copa
             )
         )
 
@@ -735,7 +749,7 @@ def main(page: ft.Page):
             tabla = g_data["tabla"]
 
             # Tabla de posiciones
-            nuevos_controles.append(crear_tabla_posiciones(grupo.nombre, tabla))
+            nuevos_controles.append(crear_tabla_posiciones(grupo.nombre, tabla, color_copa=color_copa))
 
             # Lista de partidos
             nuevos_controles.append(
@@ -744,7 +758,8 @@ def main(page: ft.Page):
                     partidos=partidos,
                     es_organizador=es_org,
                     on_guardar_marcador=on_guardar_marcador,
-                    on_reiniciar_marcador=on_reiniciar_marcador
+                    on_reiniciar_marcador=on_reiniciar_marcador,
+                    color_copa=color_copa
                 )
             )
 
@@ -756,7 +771,8 @@ def main(page: ft.Page):
                     partidos=partidos_definicion,
                     es_organizador=es_org,
                     on_guardar_marcador=on_guardar_marcador,
-                    on_reiniciar_marcador=on_reiniciar_marcador
+                    on_reiniciar_marcador=on_reiniciar_marcador,
+                    color_copa=color_copa
                 )
             )
 

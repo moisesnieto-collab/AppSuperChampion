@@ -38,3 +38,17 @@ GRUPOS_DEFAULT = ["Grupo A", "Grupo B"]
 
 # PIN por defecto para modo Organizador / Mesa de Control
 PIN_ORGANIZADOR_DEFAULT = "1234"
+
+
+def mezclar_color(hexa: str, f: float) -> str:
+    """Mezcla un color hexadecimal con blanco según factor f (0 a 1)."""
+    h = hexa.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return "#%02X%02X%02X" % tuple(int(c + (255 - c) * f) for c in (r, g, b))
+
+
+def oscurecer_color(hexa: str, f: float) -> str:
+    """Oscurece un color hexadecimal según factor f (0 a 1)."""
+    h = hexa.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return "#%02X%02X%02X" % tuple(int(c * (1 - f)) for c in (r, g, b))

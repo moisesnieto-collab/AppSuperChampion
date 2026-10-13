@@ -5,7 +5,8 @@ from config.constants import (
 )
 from backend.services.torneo_service import TorneoService
 
-def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pin=None) -> ft.Container:
+def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pin=None,
+                 color_copa=None, compacto: bool = False) -> ft.Container:
     """
     Crea el Header principal de AppSuperChampion con indicador de rol y diálogo de PIN.
     """
@@ -70,30 +71,31 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
             padding=6,
         )
 
+    titulo = [ft.Row([
+        ft.Icon(ft.Icons.EMOJI_EVENTS, color=COLOR_DORADO, size=18 if compacto else 26),
+        ft.Text(
+            "CampeonatosLive 🏆",
+            size=15 if compacto else 20,
+            weight=ft.FontWeight.BOLD,
+            color=COLOR_TEXTO
+        ),
+    ], spacing=8)]
+    if not compacto:
+        titulo.append(ft.Text(
+            "Gestión y Marcadores en Vivo por Categorías",
+            size=11,
+            color=COLOR_SUBTEXTO
+        ))
+
     return ft.Container(
         content=ft.ResponsiveRow([
-            ft.Column([
-                ft.Row([
-                    ft.Icon(ft.Icons.EMOJI_EVENTS, color=COLOR_DORADO, size=26),
-                    ft.Text(
-                        "SuperChampion 🏆",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXTO
-                    ),
-                ], spacing=8),
-                ft.Text(
-                    "Gestión y Marcadores en Vivo por Categorías",
-                    size=11,
-                    color=COLOR_SUBTEXTO
-                ),
-            ], col={"xs": 12, "sm": 7}),
+            ft.Column(titulo, spacing=2, col={"xs": 12, "sm": 7}),
             ft.Container(
                 content=badge_rol,
                 col={"xs": 12, "sm": 5}
             ),
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-        padding=12,
-        bgcolor=COLOR_TARJETA,
+        padding=4 if compacto else 12,
+        bgcolor=color_copa or COLOR_TARJETA,
         border=ft.Border.all(1, COLOR_BORDE),
     )

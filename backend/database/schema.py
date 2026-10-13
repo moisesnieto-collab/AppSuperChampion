@@ -64,6 +64,15 @@ def inicializar_db():
     )
     """)
 
+    # Migración: bases antiguas tienen torneos.anio NOT NULL (reemplazado por copa_id)
+    try:
+        cursor.execute("PRAGMA table_info(torneos)")
+        columnas_torneos = [r[1] for r in cursor.fetchall()]
+        if "anio" in columnas_torneos:
+            cursor.execute("ALTER TABLE torneos DROP COLUMN anio")
+    except Exception as err:
+        print(f"No se pudo migrar torneos.anio: {err}")
+
     # Tabla Jornadas (ahora pertenece a Torneo)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS jornadas (

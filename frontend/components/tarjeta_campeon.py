@@ -3,7 +3,7 @@ from typing import Callable, Optional
 from config.constants import (
     COLOR_TARJETA, COLOR_BORDE, COLOR_CELESTE, COLOR_TEXTO,
     COLOR_SUBTEXTO, COLOR_VERDE, COLOR_ROJO, COLOR_AMBAR, COLOR_DORADO,
-    COLOR_TARJETA_SEGUNDARIA
+    COLOR_TARJETA_SEGUNDARIA, oscurecer_color
 )
 
 
@@ -11,11 +11,14 @@ def crear_tarjeta_campeon(
     estado_campeon: dict,
     es_organizador: bool,
     on_generar_desempate: Optional[Callable[[int, str, str], None]] = None,
-    on_generar_final: Optional[Callable[[], None]] = None
+    on_generar_final: Optional[Callable[[], None]] = None,
+    color_copa: Optional[str] = None
 ) -> ft.Container:
     """
     Renderiza la tarjeta de estado del campeonato con indicador de campeón o necesidad de desempate.
     """
+    bg_tarjeta = color_copa or COLOR_TARJETA
+    bg_secundaria = oscurecer_color(color_copa, 0.30) if color_copa else COLOR_TARJETA_SEGUNDARIA
     
     estado = estado_campeon.get("estado", "SIN_DATOS")
     
@@ -93,7 +96,7 @@ def crear_tarjeta_campeon(
                     ),
                 ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
                 padding=12,
-                bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                bgcolor=bg_secundaria,
                 border_radius=8,
             ),
             ft.Text(
@@ -149,7 +152,7 @@ def crear_tarjeta_campeon(
                     ),
                 ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
                 padding=12,
-                bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                bgcolor=bg_secundaria,
                 border_radius=8,
             ),
         ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
@@ -166,7 +169,7 @@ def crear_tarjeta_campeon(
             )
         
         color_borde = COLOR_ROJO
-        icono_estado = ft.Ions.ERROR_OUTLINE
+        icono_estado = ft.Icons.ERROR_OUTLINE
         color_icono = COLOR_ROJO
         
     elif estado == "EN_CURSO":
@@ -229,7 +232,7 @@ def crear_tarjeta_campeon(
                     ], spacing=4),
                 ], spacing=4),
                 padding=12,
-                bgcolor=COLOR_TARJETA_SEGUNDARIA,
+                bgcolor=bg_secundaria,
                 border_radius=8,
             ),
             ft.Text(
@@ -293,7 +296,7 @@ def crear_tarjeta_campeon(
             contenido,
         ], spacing=10),
         padding=16,
-        bgcolor=COLOR_TARJETA,
+        bgcolor=bg_tarjeta,
         border_radius=10,
         border=ft.Border.all(2, color_borde)
     )
