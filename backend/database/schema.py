@@ -5,33 +5,49 @@ from config.constants import CATEGORIAS_DEFAULT, DIAS_DEFAULT, GRUPOS_DEFAULT
 
 def inicializar_db():
     """
-    Crea las tablas de AppSuperChampion e inicializa categorías y grupos por defecto si no existen.
+    Crea las tablas de AppSuperChampion e inicializa torneos, categorías y grupos por defecto si no existen.
+    Nueva jerarquía: Torneo -> Jornada -> Categoría -> Grupo -> Partido
     """
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # Tabla Categorías
+    # Tabla Torneos
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS categorias (
+    CREATE TABLE IF NOT EXISTS torneos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT UNIQUE NOT NULL,
-        orden INTEGER NOT NULL
+        nombre TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        anio INTEGER NOT NULL,
+        activo INTEGER DEFAULT 1,
+        fecha_inicio DATE,
+        fecha_fin DATE
     )
     """)
 
-    # Tabla Jornadas (nueva)
+    # Tabla Jornadas (ahora pertenece a Torneo)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS jornadas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        categoria_id INTEGER NOT NULL,
+        torneo_id INTEGER NOT NULL,
         fecha DATE NOT NULL,
         nombre TEXT NOT NULL,
         orden INTEGER NOT NULL,
-        FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE CASCADE
+        FOREIGN KEY (torneo_id) REFERENCES torneos(id) ON DELETE CASCADE
     )
     """)
 
-    # Tabla Grupos (modificar campo dia a fecha)
+    # Tabla Categorías (ahora pertenece a Jornada)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS categorias (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        jornada_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        orden INTEGER NOT NULL,
+        FOREIGN KEY (jornada_id) REFERENCES jornadas(id) ON DELETE CASCADE
+    )
+    """)
+
+    # Tabla Grupos
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS grupos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +60,7 @@ def inicializar_db():
     )
     """)
 
-    # Tabla Partidos (modificar campo dia a fecha)
+    # Tabla Partidos
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,23 +90,35 @@ def inicializar_db():
 
     con.commit()
 
-    # Poblar categorías por defecto si está vacía
-    cursor.execute("SELECT COUNT(*) FROM categorias")
-    count = cursor.fetchone()[0]
-    if count == 0:
-        for idx, cat_nombre in enumerate(CATEGORIAS_DEFAULT, start=1):
-            cursor.execute("INSERT INTO categorias (nombre, orden) VALUES (?, ?)", (cat_nombre, idx))
-            cat_id = cursor.lastrowid
+    # Poblar torneo por defecto si está vacío
+    cursor.execute("SELECT COUNT(*) FROM torneos")
+    count_torneos = cursor.fetchone()[0]
+    if count_torneos == 0:
+        anio_actual = datetime.now().year
+        # Crear torneo Apertura por defecto
+        cursor.execute(
+            "INSERT INTO torneos (nombre, tipo, anio, activo) VALUES (?, ?, ?, 1)",
+            (f"Torneo {anio_actual}", "Apertura", anio_actual)
+        )
+        torneo_id = cursor.lastrowid
 
-            # Crear jornadas por defecto (Día 1 y Día 2 como fechas)
-            fecha_base = datetime.now().date()
-            for i, dia_nombre in enumerate(DIAS_DEFAULT, start=1):
-                fecha_jornada = fecha_base + timedelta(days=i-1)
+        # Crear jornadas por defecto (Día 1 y Día 2)
+        fecha_base = datetime.now().date()
+        for i, dia_nombre in enumerate(DIAS_DEFAULT, start=1):
+            fecha_jornada = fecha_base + timedelta(days=i-1)
+            cursor.execute(
+                "INSERT INTO jornadas (torneo_id, fecha, nombre, orden) VALUES (?, ?, ?, ?)",
+                (torneo_id, fecha_jornada.isoformat(), dia_nombre, i)
+            )
+            jornada_id = cursor.lastrowid
+
+            # Crear categorías por defecto para esta jornada
+            for idx, cat_nombre in enumerate(CATEGORIAS_DEFAULT, start=1):
                 cursor.execute(
-                    "INSERT INTO jornadas (categoria_id, fecha, nombre, orden) VALUES (?, ?, ?, ?)",
-                    (cat_id, fecha_jornada.isoformat(), dia_nombre, i)
+                    "INSERT INTO categorias (jornada_id, nombre, orden) VALUES (?, ?, ?)",
+                    (jornada_id, cat_nombre, idx)
                 )
-                jornada_id = cursor.lastrowid
+                cat_id = cursor.lastrowid
 
                 # Grupo A
                 equipos_a = ["Real Dunalastair", "Cobresal", "Colo-Colo", "U. de Chile"]

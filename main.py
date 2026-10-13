@@ -32,20 +32,30 @@ def main(page: ft.Page):
     # Estado global de la aplicación
     estado = {
         "es_organizador": False,
+        "torneo_activo_id": None,
+        "jornada_activa_id": None,
         "categoria_activa_id": None,
-        "jornada_activa_id": None,  # Ahora es un ID de jornada en lugar de un string
         "grupo_filtro": "Todos",
     }
 
-    # Cargar categorías iniciales
-    categorias = TorneoService.obtener_categorias()
-    if categorias:
-        estado["categoria_activa_id"] = categorias[0].id
-        # Cargar la primera jornada de la categoría
-        from backend.database.repositories import JornadaRepository
-        jornadas = JornadaRepository.obtener_por_categoria(categorias[0].id)
+    # Cargar torneos iniciales
+    torneos = TorneoService.obtener_torneos()
+    if torneos:
+        # Seleccionar el torneo activo o el primero
+        torneo_activo = TorneoService.obtener_torneo_activo()
+        if torneo_activo:
+            estado["torneo_activo_id"] = torneo_activo.id
+        else:
+            estado["torneo_activo_id"] = torneos[0].id
+        
+        # Cargar la primera jornada del torneo
+        jornadas = TorneoService.obtener_jornadas_por_torneo(estado["torneo_activo_id"])
         if jornadas:
-            estado["jornada_activa_id"] = jornadas[0]["id"]
+            estado["jornada_activa_id"] = jornadas[0].id
+            # Cargar la primera categoría de la jornada
+            categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
+            if categorias:
+                estado["categoria_activa_id"] = categorias[0].id
 
     # Contenedor principal para el contenido dinámico
     contenido_principal = ft.Column([], scroll=ft.ScrollMode.AUTO, spacing=16)
@@ -276,10 +286,10 @@ def main(page: ft.Page):
 
     # Diálogo para crear jornada
     def abrir_dialogo_crear_jornada(e):
-        cat_id = estado.get("categoria_activa_id")
-        if not cat_id:
+        torneo_id = estado.get("torneo_activo_id")
+        if not torneo_id:
             page.snack_bar = ft.SnackBar(
-                content=ft.Text("❌ No hay una categoría seleccionada"),
+                content=ft.Text("❌ No hay un torneo seleccionado"),
                 bgcolor=COLOR_ROJO,
                 duration=3000
             )
@@ -320,15 +330,15 @@ def main(page: ft.Page):
                 page.update()
                 return
 
-            nombre = tf_nombre.value.strip() or f"Día {len(JornadaRepository.obtener_por_categoria(cat_id)) + 1}"
+            nombre = tf_nombre.value.strip() or f"Día {len(JornadaRepository.obtener_por_torneo(torneo_id)) + 1}"
             fecha = dp_fecha.value.isoformat()
 
             try:
                 # Obtener el orden máximo actual
-                jornadas = JornadaRepository.obtener_por_categoria(cat_id)
+                jornadas = JornadaRepository.obtener_por_torneo(torneo_id)
                 nuevo_orden = len(jornadas) + 1
 
-                jornada_id = JornadaRepository.crear(cat_id, fecha, nombre, nuevo_orden)
+                jornada_id = JornadaRepository.crear(torneo_id, fecha, nombre, nuevo_orden)
                 estado["jornada_activa_id"] = jornada_id
                 dlg_crear_jornada.open = False
                 actualizar_vista()
@@ -393,10 +403,10 @@ def main(page: ft.Page):
             try:
                 JornadaRepository.eliminar(jornada_id)
                 # Cargar la primera jornada disponible
-                cat_id = estado.get("categoria_activa_id")
-                jornadas = JornadaRepository.obtener_por_categoria(cat_id)
+                torneo_id = estado.get("torneo_activo_id")
+                jornadas = JornadaRepository.obtener_por_torneo(torneo_id)
                 if jornadas:
-                    estado["jornada_activa_id"] = jornadas[0]["id"]
+                    estado["jornada_activa_id"] = jornadas[0].id
                 else:
                     estado["jornada_activa_id"] = None
                 dlg_eliminar_jornada.open = False
@@ -438,10 +448,10 @@ def main(page: ft.Page):
 
     # Diálogo para buscar jornada
     def abrir_dialogo_buscar_jornada(e):
-        cat_id = estado.get("categoria_activa_id")
-        if not cat_id:
+        torneo_id = estado.get("torneo_activo_id")
+        if not torneo_id:
             page.snack_bar = ft.SnackBar(
-                content=ft.Text("❌ No hay una categoría seleccionada"),
+                content=ft.Text("❌ No hay un torneo seleccionado"),
                 bgcolor=COLOR_ROJO,
                 duration=3000
             )
@@ -482,14 +492,14 @@ def main(page: ft.Page):
                 return
 
             fecha = dp_fecha.value.isoformat()
-            jornada = JornadaRepository.buscar_por_fecha(cat_id, fecha)
+            jornada = JornadaRepository.buscar_por_fecha(torneo_id, fecha)
 
             if jornada:
-                estado["jornada_activa_id"] = jornada["id"]
+                estado["jornada_activa_id"] = jornada.id
                 dlg_buscar_jornada.open = False
                 actualizar_vista()
                 page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"✅ Jornada '{jornada['nombre']}' encontrada"),
+                    content=ft.Text(f"✅ Jornada '{jornada.nombre}' encontrada"),
                     bgcolor=COLOR_VERDE,
                     duration=3000
                 )
@@ -572,9 +582,14 @@ def main(page: ft.Page):
         grupo_filtro = estado.get("grupo_filtro", "Todos")
         es_org = estado.get("es_organizador", False)
 
+        # Cargar categorías de la jornada activa
+        categorias_actual = []
+        if jornada_id:
+            categorias_actual = TorneoService.obtener_categorias_por_jornada(jornada_id)
+
         # Actualizar selector
         selector_nuevo = crear_selector_categoria_y_dia(
-            estado, page, categorias, on_cambio_seleccion,
+            estado, page, torneos, categorias_actual, on_cambio_seleccion,
             on_crear_grupo=abrir_dialogo_crear_grupo,
             on_editar_grupo=abrir_dialogo_editar_grupo,
             on_eliminar_grupo=abrir_dialogo_eliminar_grupo,

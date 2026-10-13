@@ -45,6 +45,8 @@ class TestSuperChampion(unittest.TestCase):
         cursor.execute("DELETE FROM partidos")
         cursor.execute("DELETE FROM grupos")
         cursor.execute("DELETE FROM categorias")
+        cursor.execute("DELETE FROM jornadas")
+        cursor.execute("DELETE FROM torneos")
         con.commit()
         
         # Reinicializar con datos por defecto
@@ -52,7 +54,16 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_creacion_categoria_fixture(self):
         """Verificar la creación de categorías con grupos automáticos."""
-        categorias = TorneoService.obtener_categorias()
+        # Obtener torneo activo
+        torneo = TorneoService.obtener_torneo_activo()
+        self.assertIsNotNone(torneo)
+        
+        # Obtener jornadas del torneo
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        self.assertGreater(len(jornadas), 0)
+        
+        # Obtener categorías de la primera jornada
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         
         # Deben existir 6 categorías por defecto
         self.assertEqual(len(categorias), 6)
@@ -62,25 +73,27 @@ class TestSuperChampion(unittest.TestCase):
         self.assertIn("1° Básico", nombres_cat)
         self.assertIn("6° Básico", nombres_cat)
         
-        # Verificar que cada categoría tiene grupos para Día 1 y Día 2
+        # Verificar que cada categoría tiene grupos para la jornada
         for cat in categorias:
-            grupos_dia1 = TorneoService.obtener_datos_categoria_dia(cat.id, "Día 1")["grupos"]
-            grupos_dia2 = TorneoService.obtener_datos_categoria_dia(cat.id, "Día 2")["grupos"]
-            
-            self.assertEqual(len(grupos_dia1), 2)  # Grupo A y Grupo B
-            self.assertEqual(len(grupos_dia2), 2)  # Grupo A y Grupo B
+            grupos = TorneoService.obtener_datos_categoria_dia(cat.id, jornadas[0].id)["grupos"]
+            self.assertEqual(len(grupos), 2)  # Grupo A y Grupo B
     
     def test_creacion_categoria_personalizada(self):
         """Verificar creación de categoría personalizada con fixture automático."""
+        # Obtener jornada activa
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        jornada_id = jornadas[0].id
+        
         # Crear nueva categoría como organizador
-        nueva_cat_id = TorneoService.crear_categoria("7° Básico", es_organizador=True)
+        nueva_cat_id = TorneoService.crear_categoria(jornada_id, "7° Básico", es_organizador=True)
         
         # Verificar que la categoría fue creada
-        categorias = TorneoService.obtener_categorias()
+        categorias = TorneoService.obtener_categorias_por_jornada(jornada_id)
         self.assertEqual(len(categorias), 7)
         
         # Verificar que tiene grupos y partidos
-        datos = TorneoService.obtener_datos_categoria_dia(nueva_cat_id, "Día 1")
+        datos = TorneoService.obtener_datos_categoria_dia(nueva_cat_id, jornada_id)
         self.assertEqual(len(datos["grupos"]), 2)
         
         # Verificar que cada grupo tiene 6 partidos (cuadrangular)
@@ -89,11 +102,14 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_calculo_tabla_posiciones(self):
         """Validar ordenamiento correcto por Pts > DG > GF."""
-        # Obtener primera categoría y Día 1
-        categorias = TorneoService.obtener_categorias()
+        # Obtener primera categoría y primera jornada
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         grupo = datos["grupos"][0]
         partidos = grupo["partidos"]
         equipos = grupo["grupo"].equipos
@@ -117,7 +133,7 @@ class TestSuperChampion(unittest.TestCase):
             TorneoService.guardar_marcador(pid, g_loc, g_vis, es_organizador=True)
         
         # Recalcular tabla
-        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         tabla = datos_actualizados["grupos"][0]["tabla"]
         
         # Verificar ordenamiento
@@ -132,10 +148,13 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_desempate_enfrentamiento_directo(self):
         """Validar criterio de desempate por enfrentamiento directo."""
-        categorias = TorneoService.obtener_categorias()
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         grupo = datos["grupos"][0]
         partidos = grupo["partidos"]
         equipos = grupo["grupo"].equipos
@@ -169,7 +188,7 @@ class TestSuperChampion(unittest.TestCase):
             TorneoService.guardar_marcador(pid, g_loc, g_vis, es_organizador=True)
         
         # Recalcular tabla
-        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         tabla = datos_actualizados["grupos"][0]["tabla"]
         
         # Todos deberían tener 3 pts, 0 DG, mismos GF/GC
@@ -185,17 +204,20 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_guardado_marcador(self):
         """Verificar persistencia y recálculo de tabla al guardar marcador."""
-        categorias = TorneoService.obtener_categorias()
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         partido = datos["grupos"][0]["partidos"][0]
         
         # Guardar marcador
         TorneoService.guardar_marcador(partido.id, 2, 1, es_organizador=True)
         
         # Verificar que el marcador se guardó
-        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         partido_actualizado = datos_actualizados["grupos"][0]["partidos"][0]
         
         self.assertEqual(partido_actualizado.goles_local, 2)
@@ -214,20 +236,24 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_determinacion_campeon_puntero_unico(self):
         """Caso 1: Puntero único con mayor puntaje -> Estado CAMPEON_DEFINIDO."""
-        categorias = TorneoService.obtener_categorias()
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
-        partidos = datos["grupos"][0]["partidos"]
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         
-        # Simular todos los partidos con un puntero claro
-        for i, partido in enumerate(partidos):
-            if i % 2 == 0:
-                TorneoService.guardar_marcador(partido.id, 3, 0, es_organizador=True)
-            else:
-                TorneoService.guardar_marcador(partido.id, 0, 3, es_organizador=True)
+        # Simular todos los partidos de todos los grupos con un puntero claro
+        for grupo_data in datos["grupos"]:
+            partidos = grupo_data["partidos"]
+            for i, partido in enumerate(partidos):
+                if i % 2 == 0:
+                    TorneoService.guardar_marcador(partido.id, 3, 0, es_organizador=True)
+                else:
+                    TorneoService.guardar_marcador(partido.id, 0, 3, es_organizador=True)
         
-        datos_final = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_final = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         estado_campeon = datos_final["estado_campeon"]
         
         self.assertEqual(estado_campeon["estado"], "CAMPEON_DEFINIDO")
@@ -235,18 +261,22 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_determinacion_campeon_empate(self):
         """Caso 2: Empate en puntos y diferencia de goles -> Estado EMPATE_REQUIERE_DESEMPATE."""
-        categorias = TorneoService.obtener_categorias()
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
-        partidos = datos["grupos"][0]["partidos"]
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         
         # Crear escenario de empate absoluto en primer lugar
-        # Todos los partidos empate 1-1
-        for partido in partidos:
-            TorneoService.guardar_marcador(partido.id, 1, 1, es_organizador=True)
+        # Todos los partidos empate 1-1 en todos los grupos
+        for grupo_data in datos["grupos"]:
+            partidos = grupo_data["partidos"]
+            for partido in partidos:
+                TorneoService.guardar_marcador(partido.id, 1, 1, es_organizador=True)
         
-        datos_final = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_final = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         estado_campeon = datos_final["estado_campeon"]
         
         self.assertEqual(estado_campeon["estado"], "EMPATE_REQUIERE_DESEMPATE")
@@ -255,23 +285,26 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_generacion_partido_desempate(self):
         """Validar generación de partido de desempate."""
-        categorias = TorneoService.obtener_categorias()
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         grupo = datos["grupos"][0]
         grupo_id = grupo["grupo"].id
         equipos = grupo["grupo"].equipos
         
         # Generar partido de desempate
         partido_id = TorneoService.generar_partido_desempate(
-            cat_id, "Día 1", grupo_id, equipos[0], equipos[1], es_organizador=True
+            cat_id, jornada_id, grupo_id, equipos[0], equipos[1], es_organizador=True
         )
         
         self.assertIsNotNone(partido_id)
         
         # Verificar que el partido se creó
-        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         partidos_definicion = datos_actualizados["partidos_definicion"]
         
         self.assertEqual(len(partidos_definicion), 1)
@@ -286,10 +319,13 @@ class TestSuperChampion(unittest.TestCase):
     
     def test_permisos_organizador(self):
         """Verificar que las acciones de organizador requieren PIN."""
-        categorias = TorneoService.obtener_categorias()
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         partido = datos["grupos"][0]["partidos"][0]
         
         # Intentar guardar marcador sin ser organizador
@@ -298,22 +334,25 @@ class TestSuperChampion(unittest.TestCase):
         
         # Intentar crear categoría sin ser organizador
         with self.assertRaises(PermissionError):
-            TorneoService.crear_categoria("Test", es_organizador=False)
+            TorneoService.crear_categoria(jornada_id, "Test", es_organizador=False)
         
         # Guardar con permiso de organizador
         TorneoService.guardar_marcador(partido.id, 2, 1, es_organizador=True)
         
         # Verificar que se guardó
-        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         partido_actualizado = datos_actualizados["grupos"][0]["partidos"][0]
         self.assertEqual(partido_actualizado.goles_local, 2)
     
     def test_reiniciar_marcador(self):
         """Validar reinicio de marcador a 0-0."""
-        categorias = TorneoService.obtener_categorias()
+        torneo = TorneoService.obtener_torneo_activo()
+        jornadas = TorneoService.obtener_jornadas_por_torneo(torneo.id)
+        categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
         cat_id = categorias[0].id
+        jornada_id = jornadas[0].id
         
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         partido = datos["grupos"][0]["partidos"][0]
         
         # Guardar marcador
@@ -323,7 +362,7 @@ class TestSuperChampion(unittest.TestCase):
         TorneoService.reiniciar_marcador(partido.id, es_organizador=True)
         
         # Verificar reinicio
-        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, "Día 1")
+        datos_actualizados = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
         partido_actualizado = datos_actualizados["grupos"][0]["partidos"][0]
         
         self.assertEqual(partido_actualizado.goles_local, 0)

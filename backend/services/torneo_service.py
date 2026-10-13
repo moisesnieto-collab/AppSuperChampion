@@ -1,11 +1,14 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from backend.database.repositories import (
-    CategoriaRepository, GrupoRepository, PartidoRepository, ConfiguracionRepository, JornadaRepository
+    CategoriaRepository, GrupoRepository, PartidoRepository, ConfiguracionRepository, 
+    JornadaRepository, TorneoRepository
 )
 from backend.models.categoria import Categoria
 from backend.models.grupo import Grupo
 from backend.models.partido import Partido
+from backend.models.torneo import Torneo
+from backend.models.jornada import Jornada
 from backend.services.tabla_service import TablaService
 
 class TorneoService:
@@ -27,11 +30,35 @@ class TorneoService:
         return True
 
     @staticmethod
-    def obtener_categorias() -> List[Categoria]:
-        return CategoriaRepository.obtener_todas()
+    def obtener_torneos() -> List[Torneo]:
+        return TorneoRepository.obtener_todos()
 
     @staticmethod
-    def crear_categoria(nombre: str, es_organizador: bool = False) -> int:
+    def obtener_torneo_activo() -> Optional[Torneo]:
+        return TorneoRepository.obtener_activo()
+
+    @staticmethod
+    def crear_torneo(nombre: str, tipo: str, anio: int, es_organizador: bool = False) -> int:
+        if not es_organizador:
+            raise PermissionError("Solo el organizador puede crear torneos")
+        return TorneoRepository.crear(nombre, tipo, anio)
+
+    @staticmethod
+    def eliminar_torneo(torneo_id: int, es_organizador: bool = False):
+        if not es_organizador:
+            raise PermissionError("Solo el organizador puede eliminar torneos")
+        TorneoRepository.eliminar(torneo_id)
+
+    @staticmethod
+    def obtener_jornadas_por_torneo(torneo_id: int) -> List[Jornada]:
+        return JornadaRepository.obtener_por_torneo(torneo_id)
+
+    @staticmethod
+    def obtener_categorias_por_jornada(jornada_id: int) -> List[Categoria]:
+        return CategoriaRepository.obtener_por_jornada(jornada_id)
+
+    @staticmethod
+    def crear_categoria(jornada_id: int, nombre: str, es_organizador: bool = False) -> int:
         if not es_organizador:
             raise PermissionError("Solo el Organizador / Mesa de Control puede crear categorías.")
 
@@ -39,26 +66,21 @@ class TorneoService:
         if not nombre_limpio:
             raise ValueError("El nombre de la categoría no puede estar vacío.")
 
-        todas = CategoriaRepository.obtener_todas()
+        todas = CategoriaRepository.obtener_por_jornada(jornada_id)
         if any(c.nombre.lower() == nombre_limpio.lower() for c in todas):
-            raise ValueError(f"La categoría '{nombre_limpio}' ya existe.")
+            raise ValueError(f"La categoría '{nombre_limpio}' ya existe en esta jornada.")
 
         nuevo_orden = len(todas) + 1
-        cat_id = CategoriaRepository.crear(nombre_limpio, nuevo_orden)
+        cat_id = CategoriaRepository.crear(jornada_id, nombre_limpio, nuevo_orden)
 
-        # Crear jornadas por defecto (Día 1 y Día 2 como fechas)
-        fecha_base = datetime.now().date()
-        for i, dia_nombre in enumerate(["Día 1", "Día 2"], start=1):
-            fecha_jornada = fecha_base + timedelta(days=i-1)
-            jornada_id = JornadaRepository.crear(cat_id, fecha_jornada.isoformat(), dia_nombre, i)
+        # Crear grupos por defecto para la categoría
+        equipos_a = ["Real Dunalastair", "Cobresal", "Colo-Colo", "U. de Chile"]
+        g_a_id = GrupoRepository.crear(cat_id, jornada_id, "Grupo A", equipos_a)
+        TorneoService._generar_partidos_cuadrangular(cat_id, jornada_id, g_a_id, equipos_a)
 
-            equipos_a = ["Real Dunalastair", "Cobresal", "Colo-Colo", "U. de Chile"]
-            g_a_id = GrupoRepository.crear(cat_id, jornada_id, "Grupo A", equipos_a)
-            TorneoService._generar_partidos_cuadrangular(cat_id, jornada_id, g_a_id, equipos_a)
-
-            equipos_b = ["U. Católica", "Palestino", "Audax Italiano", "Cobreloa"]
-            g_b_id = GrupoRepository.crear(cat_id, jornada_id, "Grupo B", equipos_b)
-            TorneoService._generar_partidos_cuadrangular(cat_id, jornada_id, g_b_id, equipos_b)
+        equipos_b = ["U. Católica", "Palestino", "Audax Italiano", "Cobreloa"]
+        g_b_id = GrupoRepository.crear(cat_id, jornada_id, "Grupo B", equipos_b)
+        TorneoService._generar_partidos_cuadrangular(cat_id, jornada_id, g_b_id, equipos_b)
 
         return cat_id
 
@@ -114,7 +136,7 @@ class TorneoService:
 
         # Regenerar partidos si hay 4 equipos (cuadrangular)
         if len(equipos) == 4:
-            TorneoService._generar_partidos_cuadrangular(grupo.categoria_id, grupo.dia, grupo_id, equipos)  # grupo.dia ahora es jornada_id
+            TorneoService._generar_partidos_cuadrangular(grupo.categoria_id, grupo.fecha_jornada_id, grupo_id, equipos)
 
     @staticmethod
     def eliminar_grupo(grupo_id: int, es_organizador: bool = False):
@@ -314,7 +336,8 @@ class TorneoService:
 
         e1 = tabla[0]
         e2 = tabla[1]
-        if e1.pts > e2.pts or e1.dg > e2.dg or e1.gf > e2.gf:
+        # Lógica jerárquica: Puntos > Diferencia de Goles > Goles a Favor
+        if e1.pts > e2.pts or (e1.pts == e2.pts and e1.dg > e2.dg) or (e1.pts == e2.pts and e1.dg == e2.dg and e1.gf > e2.gf):
             return {
                 "estado": "CAMPEON_DEFINIDO",
                 "campeon": e1.equipo,

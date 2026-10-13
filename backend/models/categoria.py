@@ -4,12 +4,14 @@ from typing import Dict, Any
 @dataclass
 class Categoria:
     id: int
+    jornada_id: int
     nombre: str
     orden: int = 1
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
+            "jornada_id": self.jornada_id,
             "nombre": self.nombre,
             "orden": self.orden,
         }
@@ -18,6 +20,7 @@ class Categoria:
     def from_dict(cls, data: Dict[str, Any]) -> "Categoria":
         return cls(
             id=data.get("id", 0),
+            jornada_id=data.get("jornada_id", 0),
             nombre=data.get("nombre", ""),
             orden=data.get("orden", 1),
         )

@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 class Grupo:
     id: int
     categoria_id: int
-    dia: str
+    fecha_jornada_id: int
     nombre: str
     equipos: List[str] = field(default_factory=list)
 
@@ -13,7 +13,7 @@ class Grupo:
         return {
             "id": self.id,
             "categoria_id": self.categoria_id,
-            "dia": self.dia,
+            "fecha_jornada_id": self.fecha_jornada_id,
             "nombre": self.nombre,
             "equipos": self.equipos,
         }
@@ -23,7 +23,7 @@ class Grupo:
         return cls(
             id=data.get("id", 0),
             categoria_id=data.get("categoria_id", 0),
-            dia=data.get("dia", ""),
+            fecha_jornada_id=data.get("fecha_jornada_id", 0),
             nombre=data.get("nombre", ""),
             equipos=data.get("equipos", []),
         )

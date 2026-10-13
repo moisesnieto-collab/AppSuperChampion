@@ -6,7 +6,7 @@ class Partido:
     id: int
     grupo_id: int
     categoria_id: int
-    dia: str
+    fecha_jornada_id: int
     equipo_local: str
     equipo_visita: str
     goles_local: int = 0
@@ -20,7 +20,7 @@ class Partido:
             "id": self.id,
             "grupo_id": self.grupo_id,
             "categoria_id": self.categoria_id,
-            "dia": self.dia,
+            "fecha_jornada_id": self.fecha_jornada_id,
             "equipo_local": self.equipo_local,
             "equipo_visita": self.equipo_visita,
             "goles_local": self.goles_local,
@@ -36,7 +36,7 @@ class Partido:
             id=data.get("id", 0),
             grupo_id=data.get("grupo_id", 0),
             categoria_id=data.get("categoria_id", 0),
-            dia=data.get("dia", ""),
+            fecha_jornada_id=data.get("fecha_jornada_id", 0),
             equipo_local=data.get("equipo_local", ""),
             equipo_visita=data.get("equipo_visita", ""),
             goles_local=int(data.get("goles_local", 0)),
