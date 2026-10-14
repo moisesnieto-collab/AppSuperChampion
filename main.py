@@ -2,7 +2,7 @@ import os
 import flet as ft
 from datetime import datetime, timedelta
 from backend.database.schema import inicializar_db
-from backend.database.repositories import JornadaRepository, CampeonatoRepository
+from backend.database.repositories import JornadaRepository, CampeonatoRepository, TorneoRepository
 from config.preferencias import cargar_ultima_seleccion
 from backend.services.torneo_service import TorneoService
 from backend.services.anio_service import AnioService
@@ -12,7 +12,11 @@ from config.settings import APP_TITLE, APP_THEME_MODE, APP_BGCOLOR
 from config.constants import (
     COLOR_FONDO, COLOR_AMBAR, COLOR_CELESTE, COLOR_CELESTE_BOTON,
     COLOR_VERDE, COLOR_ROJO, COLOR_SUBTEXTO, COLOR_TEXTO, COLOR_TARJETA, COLOR_BORDE,
-    estilo_pill_3d
+    estilo_pill_3d, BG, NAV_BG
+)
+from frontend.components.vista_rediseno import (
+    tema_copa, crear_cabecera_campeonato, crear_filtros, crear_estado_vacio, crear_skeleton,
+    crear_navegacion, cargar_jerarquia, crear_resumen_estado,
 )
 from frontend.components.header import crear_header
 from frontend.components.selector_categoria import crear_selector_categoria_y_dia
@@ -24,15 +28,15 @@ from frontend.components.tarjeta_campeon import crear_tarjeta_campeon
 def main(page: ft.Page):
     # Configuración de la página
     page.title = APP_TITLE
-    page.theme_mode = APP_THEME_MODE
+    page.theme_mode = ft.ThemeMode.DARK
     page.fonts = {
         "Montserrat": "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf",
     }
     page.theme = ft.Theme(font_family="Montserrat")
     page.dark_theme = ft.Theme(font_family="Montserrat")
-    page.bgcolor = COLOR_FONDO
+    page.bgcolor = BG
     page.padding = 0
-    page.scroll = ft.ScrollMode.AUTO
+    page.scroll = None
     page.window_min_width = 1000
     page.window_min_height = 700
 
@@ -53,6 +57,7 @@ def main(page: ft.Page):
         "pantalla": "inicio",
     }
 
+    torneos = []
     # Cargar datos iniciales - jerarquía completa
     anios = AnioService.obtener_anios()
     if anios:
@@ -91,7 +96,6 @@ def main(page: ft.Page):
                     estado["copa_activa_id"] = copas[0].id
                 
                 # Cargar torneos de la copa
-                from backend.database.repositories import TorneoRepository
                 torneos = TorneoRepository.obtener_por_copa(estado["copa_activa_id"])
                 if torneos:
                     torneo_activo = TorneoService.obtener_torneo_activo()
@@ -114,6 +118,9 @@ def main(page: ft.Page):
 
     # Contenedor para el selector (se actualiza dinámicamente)
     selector_container = ft.Container()
+    cabecera_container = ft.Container()
+    filtros_container = ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=4))
+    nav_container = ft.Container()
 
     # Crear diálogo PIN persistente
     tf_pin = ft.TextField(
@@ -654,7 +661,12 @@ def main(page: ft.Page):
         es_org = bool(estado.get("es_organizador", False) and estado.get("modo_admin", False))
 
         # Pantalla de inicio: solo Año y Campeonato
+        if estado.get("pantalla", "inicio") == "inicio" and estado.get("campeonato_activo_id"):
+            estado["pantalla"] = "campeonato"
         if estado.get("pantalla", "inicio") == "inicio":
+            cabecera_container.content = None
+            filtros_container.content = None
+            nav_container.content = None
             selector_container.content = crear_selector_categoria_y_dia(
                 estado, page, [], [], on_cambio_seleccion, vista="inicio"
             )
@@ -666,131 +678,120 @@ def main(page: ft.Page):
             page.update()
             return
 
-        # Cargar categorías de la jornada activa
-        categorias_actual = []
-        if jornada_id:
-            categorias_actual = TorneoService.obtener_categorias_por_jornada(jornada_id)
+        torneo_id = estado.get("torneo_activo_id")
+        copas_c = CopaService.obtener_copas_por_campeonato(estado["campeonato_activo_id"]) \
+            if estado.get("campeonato_activo_id") else []
+        tema = tema_copa(copas_c, estado.get("copa_activa_id"))
+        bright = tema["bright"]
+        categorias_actual = TorneoService.obtener_categorias_por_jornada(jornada_id) if jornada_id else []
+        jornadas_actual = TorneoService.obtener_jornadas_por_torneo(torneo_id) if torneo_id else []
 
-        # Actualizar selector
-        selector_nuevo = crear_selector_categoria_y_dia(
-            estado, page, torneos, categorias_actual, on_cambio_seleccion,
-            on_crear_grupo=abrir_dialogo_crear_grupo,
-            on_editar_grupo=abrir_dialogo_editar_grupo,
-            on_eliminar_grupo=abrir_dialogo_eliminar_grupo,
-            on_crear_jornada=abrir_dialogo_crear_jornada,
-            on_eliminar_jornada=abrir_dialogo_eliminar_jornada,
-            on_buscar_jornada=abrir_dialogo_buscar_jornada
-        )
-        selector_container.content = selector_nuevo
-
-        # Actualizar header
-        _cid = estado.get("copa_activa_id")
-        _copa = CopaService.obtener_copa_por_id(_cid) if _cid else None
-        header_nuevo = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin,
-                                    color_copa=_copa.color if _copa and _copa.color else None,
-                                    compacto=True)
-        header.content = header_nuevo.content
-        header.bgcolor = header_nuevo.bgcolor
-        header.padding = header_nuevo.padding
-
-        if not cat_id:
-            contenido_principal.controls = [
-                ft.Container(
-                    content=ft.Column([
-                        ft.Icon(ft.Icons.ERROR_OUTLINE, size=48, color=ft.Colors.RED_400),
-                        ft.Text("No hay categorías disponibles", size=16, color=ft.Colors.GREY_400),
-                    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=40
-                )
-            ]
-            page.update()
-            return
-
-        if not jornada_id:
-            contenido_principal.controls = [
-                ft.Container(
-                    content=ft.Column([
-                        ft.Icon(ft.Icons.CALENDAR_TODAY, size=48, color=ft.Colors.GREY_400),
-                        ft.Text("No hay jornadas disponibles", size=16, color=ft.Colors.GREY_400),
-                    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=40
-                )
-            ]
-            page.update()
-            return
-
-        # Obtener datos del torneo
-        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
-        grupos = datos["grupos"]
-        partidos_definicion = datos["partidos_definicion"]
-        estado_campeon = datos["estado_campeon"]
-
-        # Obtener color de la copa activa
         copa_activa_id = estado.get("copa_activa_id")
         copa_activa = CopaService.obtener_copa_por_id(copa_activa_id) if copa_activa_id else None
-        color_copa = copa_activa.color if copa_activa and copa_activa.color else None
+        color_copa = None  # fondo neutro fijo; la Copa solo aporta el acento
 
-        # Filtrar grupos según el filtro seleccionado
-        if grupo_filtro != "Todos":
-            grupos = [g for g in grupos if g["grupo"].nombre == grupo_filtro]
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id) if (cat_id and jornada_id) else None
+        grupos_todos = datos["grupos"] if datos else []
+        nombres_grupos = [g["grupo"].nombre for g in grupos_todos]
+        if estado.get("grupo_filtro", "Todos") not in ["Todos", *nombres_grupos]:
+            estado["grupo_filtro"] = "Todos"
+        grupo_filtro = estado.get("grupo_filtro", "Todos")
 
-        # Construir contenido
-        nuevos_controles = []
         tab = estado.get("tab_contenido", "Marcadores")
 
         def elegir_tab(nombre):
             estado["tab_contenido"] = nombre
             actualizar_vista()
 
-        nuevos_controles.append(ft.Row([
-            ft.Container(
-                content=ft.Text(n, size=12, weight=ft.FontWeight.BOLD if n == tab else ft.FontWeight.NORMAL,
-                                color=COLOR_TEXTO if n == tab else COLOR_SUBTEXTO),
-                padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-                border_radius=20,
-                animate=ft.Animation(150),
-                **estilo_pill_3d(color_copa or COLOR_CELESTE_BOTON, n == tab),
-                on_click=lambda ev, n=n: elegir_tab(n), ink=True,
-            ) for n in ("Marcadores", "Tabla", "Estado")
-        ], spacing=6, run_spacing=6, wrap=True))
+        header_nuevo = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin, compacto=True)
+        header.content = header_nuevo.content
+        header.bgcolor = header_nuevo.bgcolor
+        header.padding = header_nuevo.padding
 
-        # Tarjeta de campeón/estado del torneo
-        if tab == "Estado":
-          nuevos_controles.append(
-            crear_tarjeta_campeon(
-                estado_campeon=estado_campeon,
-                es_organizador=es_org,
-                on_generar_desempate=on_generar_desempate,
-                on_generar_final=on_generar_final if copa_activa and copa_activa.modo_campeon == "final_lideres" else None,
-                color_copa=color_copa
+        cabecera_container.content = crear_cabecera_campeonato(estado, page, on_cambio_seleccion, bright)
+        filtros_container.content = crear_filtros(
+            estado, page, on_cambio_seleccion, tema, copas_c, categorias_actual, jornadas_actual, nombres_grupos)
+        nav_container.content = crear_navegacion(tab, bright, elegir_tab)
+
+        # Herramientas de administración (solo con PIN y modo Administrar)
+        if es_org:
+            selector_container.content = crear_selector_categoria_y_dia(
+                estado, page, torneos, categorias_actual, on_cambio_seleccion,
+                on_crear_grupo=abrir_dialogo_crear_grupo,
+                on_editar_grupo=abrir_dialogo_editar_grupo,
+                on_eliminar_grupo=abrir_dialogo_eliminar_grupo,
+                on_crear_jornada=abrir_dialogo_crear_jornada,
+                on_eliminar_jornada=abrir_dialogo_eliminar_jornada,
+                on_buscar_jornada=abrir_dialogo_buscar_jornada
             )
-        )
+        else:
+            selector_container.content = None
 
-        # Agregar tablas de posiciones y partidos por grupo
-        for g_data in grupos:
-            grupo = g_data["grupo"]
-            partidos = g_data["partidos"]
-            tabla = g_data["tabla"]
+        def ultima_copa_con_datos():
+            for c in copas_c:
+                if TorneoRepository.obtener_por_copa(c.id):
+                    cargar_jerarquia(estado, c.id)
+                    actualizar_vista()
+                    return
 
-            # Tabla de posiciones
-            if tab == "Tabla":
-                nuevos_controles.append(crear_tabla_posiciones(
-                    grupo.nombre, tabla, color_copa=color_copa, compacto=(page.width or 0) < 600))
+        if not cat_id:
+            contenido_principal.controls = [crear_estado_vacio(
+                "Aún no hay categorías en esta Copa",
+                "Prueba otra Copa o vuelve pronto.", ft.Icons.INBOX_OUTLINED,
+                "Ir a la última Copa con datos", ultima_copa_con_datos)]
+            page.update()
+            return
 
-            # Lista de partidos
-            if tab == "Marcadores":
-              nuevos_controles.append(
-                crear_lista_partidos(
-                    grupo_nombre=grupo.nombre,
-                    partidos=partidos,
+        if not jornada_id:
+            contenido_principal.controls = [crear_estado_vacio(
+                "No hay jornadas disponibles", "Vuelve pronto o prueba otra Copa.",
+                ft.Icons.CALENDAR_TODAY, "Ir a la última Copa con datos", ultima_copa_con_datos)]
+            page.update()
+            return
+
+        grupos = grupos_todos
+        partidos_definicion = datos["partidos_definicion"]
+        estado_campeon = datos["estado_campeon"]
+
+        if grupo_filtro != "Todos":
+            grupos = [g for g in grupos if g["grupo"].nombre == grupo_filtro]
+
+        nuevos_controles = []
+
+        if tab == "Estado":
+            todos = [p for g in grupos_todos for p in g["partidos"]] + list(partidos_definicion or [])
+            cat_nom = next((c.nombre for c in categorias_actual if c.id == cat_id), "")
+            jor = next((j for j in jornadas_actual if j.id == jornada_id), None)
+            nuevos_controles.append(crear_resumen_estado(
+                todos, copa_activa.nombre if copa_activa else "", cat_nom,
+                f"{jor.nombre} · {jor.fecha}" if jor else "", bright))
+            nuevos_controles.append(
+                crear_tarjeta_campeon(
+                    estado_campeon=estado_campeon,
                     es_organizador=es_org,
-                    on_guardar_marcador=on_guardar_marcador,
-                    on_reiniciar_marcador=on_reiniciar_marcador,
+                    on_generar_desempate=on_generar_desempate,
+                    on_generar_final=on_generar_final if copa_activa and copa_activa.modo_campeon == "final_lideres" else None,
                     color_copa=color_copa
                 )
             )
 
-        # Partidos de definición (desempate / final)
+        for g_data in grupos:
+            grupo = g_data["grupo"]
+            if tab == "Tabla":
+                nuevos_controles.append(crear_tabla_posiciones(
+                    grupo.nombre, g_data["tabla"], color_copa=color_copa, compacto=(page.width or 0) < 600))
+            if tab == "Marcadores":
+                nuevos_controles.append(
+                    crear_lista_partidos(
+                        grupo_nombre=grupo.nombre,
+                        partidos=g_data["partidos"],
+                        es_organizador=es_org,
+                        on_guardar_marcador=on_guardar_marcador,
+                        on_reiniciar_marcador=on_reiniciar_marcador,
+                        color_copa=color_copa
+                    )
+                )
+
         if partidos_definicion and tab == "Marcadores":
             nuevos_controles.append(
                 crear_lista_partidos(
@@ -802,6 +803,11 @@ def main(page: ft.Page):
                     color_copa=color_copa
                 )
             )
+
+        if tab in ("Marcadores", "Tabla") and not grupos:
+            nuevos_controles.append(crear_estado_vacio(
+                "Aún no hay grupos en esta categoría", "Prueba otra categoría o vuelve pronto.",
+                ft.Icons.GROUPS_OUTLINED))
 
         contenido_principal.controls = nuevos_controles
         page.update()
@@ -924,15 +930,15 @@ def main(page: ft.Page):
         ft.Column(
             [
                 header,
-                ft.Container(
-                    content=selector_container,
-                    padding=12
-                ),
+                cabecera_container,
+                filtros_container,
+                ft.Container(content=selector_container, padding=ft.Padding.symmetric(horizontal=12)),
                 ft.Container(
                     content=contenido_principal,
                     padding=8,
                     expand=True
                 ),
+                nav_container,
             ],
             spacing=0,
             expand=True
