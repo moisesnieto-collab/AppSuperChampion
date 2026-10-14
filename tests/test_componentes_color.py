@@ -1,3 +1,4 @@
+import flet as ft
 import unittest
 from config.constants import mezclar_color, oscurecer_color, COLOR_TARJETA, COLOR_TARJETA_SEGUNDARIA
 from frontend.components.tarjeta_campeon import crear_tarjeta_campeon
