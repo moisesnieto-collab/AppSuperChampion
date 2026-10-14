@@ -29,14 +29,14 @@ class TestJerarquia(unittest.TestCase):
         shutil.rmtree(cls.dir, ignore_errors=True)
 
     def test_crud_y_dependencias(self):
-        anio_id = AnioService.crear_anio(2099)
-        camp_id = CampeonatoService.crear_campeonato("Camp Test", anio_id)
-        copa_id = CopaService.crear_copa("Copa Test", camp_id)
+        anio_id = AnioService.crear_anio(2099, es_master=True)
+        camp_id = CampeonatoService.crear_campeonato("Camp Test", anio_id, es_master=True)
+        copa_id = CopaService.crear_copa("Copa Test", camp_id, es_master=True)
 
         with self.assertRaises(ValueError):
-            AnioService.eliminar_anio(anio_id)
+            AnioService.eliminar_anio(anio_id, es_master=True)
         with self.assertRaises(ValueError):
-            CampeonatoService.eliminar_campeonato(camp_id)
+            CampeonatoService.eliminar_campeonato(camp_id, es_master=True)
 
         AnioRepository.actualizar(anio_id, 2098)
         self.assertEqual(AnioRepository.obtener_por_id(anio_id).valor, 2098)
@@ -45,28 +45,28 @@ class TestJerarquia(unittest.TestCase):
         CopaRepository.actualizar(copa_id, "Copa Edit", camp_id)
         self.assertEqual(CopaRepository.obtener_por_id(copa_id).nombre, "Copa Edit")
 
-        torneo_id = TorneoService.crear_torneo("T", "Copa", copa_id, es_organizador=True)
+        torneo_id = TorneoService.crear_torneo("T", "Copa", copa_id, es_master=True)
         with self.assertRaises(ValueError):
-            CopaService.eliminar_copa(copa_id)
-        TorneoService.eliminar_torneo(torneo_id, es_organizador=True)
+            CopaService.eliminar_copa(copa_id, es_master=True)
+        TorneoService.eliminar_torneo(torneo_id, es_master=True)
 
-        CopaService.eliminar_copa(copa_id)
-        CampeonatoService.eliminar_campeonato(camp_id)
-        AnioService.eliminar_anio(anio_id)
+        CopaService.eliminar_copa(copa_id, es_master=True)
+        CampeonatoService.eliminar_campeonato(camp_id, es_master=True)
+        AnioService.eliminar_anio(anio_id, es_master=True)
 
     def test_jornada_lugar_horario(self):
-        anio_id = AnioService.crear_anio(2097)
-        camp_id = CampeonatoService.crear_campeonato("C", anio_id)
-        copa_id = CopaService.crear_copa("Cp", camp_id)
-        torneo_id = TorneoService.crear_torneo("T", "Copa", copa_id, es_organizador=True)
+        anio_id = AnioService.crear_anio(2097, es_master=True)
+        camp_id = CampeonatoService.crear_campeonato("C", anio_id, es_master=True)
+        copa_id = CopaService.crear_copa("Cp", camp_id, es_master=True)
+        torneo_id = TorneoService.crear_torneo("T", "Copa", copa_id, es_master=True)
         jid = JornadaRepository.crear(torneo_id, "2099-01-01", "Día 1", 1, lugar="Estadio", horario="09:30")
         j = JornadaRepository.obtener_por_id(jid)
         self.assertEqual(j.lugar, "Estadio")
         self.assertEqual(j.horario, "09:30")
 
     def test_permisos(self):
-        anio_id = AnioService.crear_anio(2096)
-        camp_id = CampeonatoService.crear_campeonato("C", anio_id)
+        anio_id = AnioService.crear_anio(2096, es_master=True)
+        camp_id = CampeonatoService.crear_campeonato("C", anio_id, es_master=True)
         CampeonatoService.asignar_permiso(camp_id, 7, "master")
         self.assertEqual(CampeonatoService.verificar_permiso_usuario(camp_id, 7), "master")
         with self.assertRaises(ValueError):
@@ -75,10 +75,10 @@ class TestJerarquia(unittest.TestCase):
         self.assertIsNone(CampeonatoService.verificar_permiso_usuario(camp_id, 7))
 
     def test_flujo_end_to_end(self):
-        anio_id = AnioService.crear_anio(2095)
-        camp_id = CampeonatoService.crear_campeonato("E2E", anio_id)
-        copa_id = CopaService.crear_copa("Copa E2E", camp_id)
-        torneo_id = TorneoService.crear_torneo("T", "Copa", copa_id, es_organizador=True)
+        anio_id = AnioService.crear_anio(2095, es_master=True)
+        camp_id = CampeonatoService.crear_campeonato("E2E", anio_id, es_master=True)
+        copa_id = CopaService.crear_copa("Copa E2E", camp_id, es_master=True)
+        torneo_id = TorneoService.crear_torneo("T", "Copa", copa_id, es_master=True)
         jid = JornadaRepository.crear(torneo_id, "2099-01-01", "Día 1", 1, lugar="Cancha", horario="10:00")
         cat_id = TorneoService.crear_categoria(jid, "Cat E2E", es_organizador=True)
         self.assertEqual(TorneoService.obtener_datos_categoria_dia(cat_id, jid)["grupos"], [])
@@ -98,6 +98,26 @@ class TestJerarquia(unittest.TestCase):
         copas = CopaRepository.obtener_por_campeonato(camps[0].id)
         self.assertTrue(copas)
 
+
+
+class TestRoles(TestJerarquia):
+    def test_validar_pin_por_rol(self):
+        from backend.database.repositories import ConfiguracionRepository
+        self.assertEqual(TorneoService.validar_pin(ConfiguracionRepository.obtener_pin_master()), "master")
+        self.assertEqual(TorneoService.validar_pin(ConfiguracionRepository.obtener_pin()), "organizador")
+        self.assertIsNone(TorneoService.validar_pin("pin-invalido-xyz"))
+
+    def test_servicios_exigen_master(self):
+        with self.assertRaises(PermissionError):
+            AnioService.crear_anio(2001)
+        with self.assertRaises(PermissionError):
+            CampeonatoService.crear_campeonato("X", 1)
+        with self.assertRaises(PermissionError):
+            CopaService.crear_copa("X", 1)
+        with self.assertRaises(PermissionError):
+            CopaService.eliminar_copa(1)
+        with self.assertRaises(PermissionError):
+            TorneoService.crear_torneo("T", "Copa", 1)
 
 if __name__ == "__main__":
     unittest.main()

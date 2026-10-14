@@ -21,7 +21,9 @@ class CampeonatoService:
         return CampeonatoRepository.obtener_activo()
 
     @staticmethod
-    def crear_campeonato(nombre: str, anio_id: int, orden: int = 0, activo: bool = True) -> int:
+    def crear_campeonato(nombre: str, anio_id: int, orden: int = 0, activo: bool = True, es_master: bool = False) -> int:
+        if not es_master:
+            raise PermissionError("Solo el master puede crear campeonatos")
         return CampeonatoRepository.crear(nombre, anio_id, orden, activo)
 
     @staticmethod
@@ -33,7 +35,9 @@ class CampeonatoService:
         CampeonatoRepository.actualizar_orden(campeonato_id, orden)
 
     @staticmethod
-    def eliminar_campeonato(campeonato_id: int):
+    def eliminar_campeonato(campeonato_id: int, es_master: bool = False):
+        if not es_master:
+            raise PermissionError("Solo el master puede eliminar campeonatos")
         # Validar que no tenga copas asociadas
         from backend.database.repositories import CopaRepository
         copas = CopaRepository.obtener_por_campeonato(campeonato_id)

@@ -11,7 +11,7 @@ from backend.services.copa_service import CopaService
 from config.settings import APP_TITLE, APP_THEME_MODE, APP_BGCOLOR
 from config.constants import (
     COLOR_FONDO, COLOR_AMBAR, COLOR_CELESTE, COLOR_CELESTE_BOTON,
-    COLOR_VERDE, COLOR_ROJO, COLOR_SUBTEXTO, COLOR_TEXTO, COLOR_TARJETA
+    COLOR_VERDE, COLOR_ROJO, COLOR_SUBTEXTO, COLOR_TEXTO, COLOR_TARJETA, COLOR_BORDE
 )
 from frontend.components.header import crear_header
 from frontend.components.selector_categoria import crear_selector_categoria_y_dia
@@ -154,8 +154,10 @@ def main(page: ft.Page):
 
     def verificar_pin(ev):
         pin_ingresado = tf_pin.value
-        if TorneoService.validar_pin(pin_ingresado):
+        rol = TorneoService.validar_pin(pin_ingresado)
+        if rol:
             estado["es_organizador"] = True
+            estado["rol"] = rol
             dlg_pin.open = False
             on_cambio_rol()
             page.snack_bar = ft.SnackBar(
@@ -733,9 +735,27 @@ def main(page: ft.Page):
 
         # Construir contenido
         nuevos_controles = []
+        tab = estado.get("tab_contenido", "Marcadores")
 
-        # Tarjeta de campeón/estado del torneo (primero)
-        nuevos_controles.append(
+        def elegir_tab(nombre):
+            estado["tab_contenido"] = nombre
+            actualizar_vista()
+
+        nuevos_controles.append(ft.Row([
+            ft.Container(
+                content=ft.Text(n, size=12, weight=ft.FontWeight.BOLD if n == tab else ft.FontWeight.NORMAL,
+                                color=COLOR_TEXTO if n == tab else COLOR_SUBTEXTO),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+                border_radius=20,
+                bgcolor=(color_copa or COLOR_CELESTE_BOTON) if n == tab else COLOR_TARJETA,
+                border=ft.Border.all(1, COLOR_BORDE),
+                on_click=lambda ev, n=n: elegir_tab(n), ink=True,
+            ) for n in ("Marcadores", "Tabla", "Estado")
+        ], spacing=6, run_spacing=6, wrap=True))
+
+        # Tarjeta de campeón/estado del torneo
+        if tab == "Estado":
+          nuevos_controles.append(
             crear_tarjeta_campeon(
                 estado_campeon=estado_campeon,
                 es_organizador=es_org,
@@ -752,10 +772,13 @@ def main(page: ft.Page):
             tabla = g_data["tabla"]
 
             # Tabla de posiciones
-            nuevos_controles.append(crear_tabla_posiciones(grupo.nombre, tabla, color_copa=color_copa))
+            if tab == "Tabla":
+                nuevos_controles.append(crear_tabla_posiciones(
+                    grupo.nombre, tabla, color_copa=color_copa, compacto=(page.width or 0) < 600))
 
             # Lista de partidos
-            nuevos_controles.append(
+            if tab == "Marcadores":
+              nuevos_controles.append(
                 crear_lista_partidos(
                     grupo_nombre=grupo.nombre,
                     partidos=partidos,
@@ -767,7 +790,7 @@ def main(page: ft.Page):
             )
 
         # Partidos de definición (desempate / final)
-        if partidos_definicion:
+        if partidos_definicion and tab == "Marcadores":
             nuevos_controles.append(
                 crear_lista_partidos(
                     grupo_nombre="Partidos de Definición",
@@ -914,6 +937,23 @@ def main(page: ft.Page):
             expand=True
         )
     )
+
+    def on_reconectar(e=None):
+        try:
+            actualizar_vista()
+            page.update()
+        except Exception as err:
+            print(f"Error al reconectar: {err}")
+
+    page.on_connect = on_reconectar
+
+    def on_resize(e=None):
+        try:
+            actualizar_vista()
+        except Exception as err:
+            print(f"Error al redimensionar: {err}")
+
+    page.on_resize = on_resize
 
     # Cargar vista inicial
     actualizar_vista()

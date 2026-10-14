@@ -420,6 +420,17 @@ class ConfiguracionRepository:
         return ORGANIZADOR_PIN
 
     @staticmethod
+    def obtener_pin_master() -> str:
+        from config.settings import MASTER_PIN
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT valor FROM configuracion WHERE clave = 'pin_master'")
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        return MASTER_PIN
+
+    @staticmethod
     def actualizar_pin(nuevo_pin: str):
         con = obtener_conexion()
         cursor = con.cursor()

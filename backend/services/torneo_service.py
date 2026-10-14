@@ -13,16 +13,20 @@ from backend.services.tabla_service import TablaService
 
 class TorneoService:
     @staticmethod
-    def validar_pin(pin: str) -> bool:
+    def validar_pin(pin: str) -> Optional[str]:
         """
-        Valida si el PIN ingresado corresponde al PIN de Organizador.
+        Devuelve el rol del PIN ingresado: "master", "organizador" o None.
         """
-        pin_correcto = ConfiguracionRepository.obtener_pin()
-        return str(pin).strip() == str(pin_correcto).strip()
+        pin = str(pin).strip()
+        if pin == str(ConfiguracionRepository.obtener_pin_master()).strip():
+            return "master"
+        if pin == str(ConfiguracionRepository.obtener_pin()).strip():
+            return "organizador"
+        return None
 
     @staticmethod
     def cambiar_pin(pin_actual: str, pin_nuevo: str) -> bool:
-        if not TorneoService.validar_pin(pin_actual):
+        if TorneoService.validar_pin(pin_actual) != "organizador":
             return False
         if not pin_nuevo or len(pin_nuevo.strip()) < 4:
             return False
@@ -38,21 +42,21 @@ class TorneoService:
         return TorneoRepository.obtener_activo()
 
     @staticmethod
-    def crear_torneo(nombre: str, tipo: str, copa_id: int, orden: int = 0, es_organizador: bool = False) -> int:
-        if not es_organizador:
-            raise PermissionError("Solo el organizador puede crear torneos")
+    def crear_torneo(nombre: str, tipo: str, copa_id: int, orden: int = 0, es_master: bool = False) -> int:
+        if not es_master:
+            raise PermissionError("Solo el master puede crear torneos")
         return TorneoRepository.crear(nombre, tipo, copa_id, orden)
 
     @staticmethod
-    def actualizar_orden_torneo(torneo_id: int, orden: int, es_organizador: bool = False):
-        if not es_organizador:
-            raise PermissionError("Solo el organizador puede modificar el orden de torneos")
+    def actualizar_orden_torneo(torneo_id: int, orden: int, es_master: bool = False):
+        if not es_master:
+            raise PermissionError("Solo el master puede modificar el orden de torneos")
         TorneoRepository.actualizar_orden(torneo_id, orden)
 
     @staticmethod
-    def eliminar_torneo(torneo_id: int, es_organizador: bool = False):
-        if not es_organizador:
-            raise PermissionError("Solo el organizador puede eliminar torneos")
+    def eliminar_torneo(torneo_id: int, es_master: bool = False):
+        if not es_master:
+            raise PermissionError("Solo el master puede eliminar torneos")
         TorneoRepository.eliminar(torneo_id)
 
     @staticmethod

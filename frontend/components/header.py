@@ -14,6 +14,7 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
 
     def cerrar_sesion_organizador(e):
         estado["es_organizador"] = False
+        estado["rol"] = None
         estado["modo_admin"] = False
         on_cambio_rol()
         page.snack_bar = ft.SnackBar(
@@ -35,7 +36,7 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
         badge_rol = ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS, color=COLOR_VERDE, size=16),
-                ft.Text("Mesa de Control (Organizador)", size=12, weight=ft.FontWeight.BOLD, color=COLOR_VERDE),
+                ft.Text("Mesa de Control (Master)" if estado.get("rol") == "master" else "Mesa de Control (Organizador)", size=12, weight=ft.FontWeight.BOLD, color=COLOR_VERDE),
                 ft.IconButton(
                     icon=ft.Icons.EDIT if not modo_admin else ft.Icons.EDIT_OFF,
                     icon_color=COLOR_AMBAR if modo_admin else COLOR_CELESTE,

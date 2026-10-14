@@ -21,7 +21,9 @@ class CopaService:
         return CopaRepository.obtener_activo()
 
     @staticmethod
-    def crear_copa(nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None, **reglas) -> int:
+    def crear_copa(nombre: str, campeonato_id: int, orden: int = 0, activo: bool = True, color: Optional[str] = None, es_master: bool = False, **reglas) -> int:
+        if not es_master:
+            raise PermissionError("Solo el master puede crear copas")
         return CopaRepository.crear(nombre, campeonato_id, orden, activo, color, **reglas)
 
     @staticmethod
@@ -33,7 +35,9 @@ class CopaService:
         CopaRepository.actualizar_orden(copa_id, orden)
 
     @staticmethod
-    def eliminar_copa(copa_id: int):
+    def eliminar_copa(copa_id: int, es_master: bool = False):
+        if not es_master:
+            raise PermissionError("Solo el master puede eliminar copas")
         # Validar que no tenga torneos asociados
         from backend.database.repositories import TorneoRepository
         torneos = TorneoRepository.obtener_por_copa(copa_id)
@@ -43,7 +47,9 @@ class CopaService:
         CopaRepository.eliminar(copa_id)
 
     @staticmethod
-    def limpiar_partidos_definicion(copa_id: int):
+    def limpiar_partidos_definicion(copa_id: int, es_master: bool = False):
+        if not es_master:
+            raise PermissionError("Solo el master puede cambiar las reglas de la copa")
         """Elimina los partidos de definición (final/desempate) de toda la Copa."""
         from backend.database.repositories import TorneoRepository, PartidoRepository
         from backend.services.torneo_service import TorneoService

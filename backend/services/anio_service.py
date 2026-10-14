@@ -17,7 +17,9 @@ class AnioService:
         return AnioRepository.obtener_activo()
 
     @staticmethod
-    def crear_anio(valor: int, orden: int = 0, activo: bool = True) -> int:
+    def crear_anio(valor: int, orden: int = 0, activo: bool = True, es_master: bool = False) -> int:
+        if not es_master:
+            raise PermissionError("Solo el master puede crear años")
         # Validar que el año no exista
         anios_existentes = AnioRepository.obtener_todos()
         for anio in anios_existentes:
@@ -35,7 +37,9 @@ class AnioService:
         AnioRepository.actualizar_orden(anio_id, orden)
 
     @staticmethod
-    def eliminar_anio(anio_id: int):
+    def eliminar_anio(anio_id: int, es_master: bool = False):
+        if not es_master:
+            raise PermissionError("Solo el master puede eliminar años")
         # Validar que no tenga campeonatos asociados
         from backend.database.repositories import CampeonatoRepository
         campeonatos = CampeonatoRepository.obtener_por_anio(anio_id)
