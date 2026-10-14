@@ -8,7 +8,7 @@ from config.constants import (
 from backend.models.tabla import EstadisticaEquipo
 
 def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo], color_copa: Optional[str] = None,
-                           compacto: bool = False) -> ft.Container:
+                           compacto: bool = False, acento: Optional[str] = None) -> ft.Container:
     """
     Tabla de posiciones responsiva hecha con filas. En modo compacto (móvil) oculta PG, PE, PP, GF y GC.
     """
@@ -44,7 +44,7 @@ def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo], co
                 f"🥇 {idx}" if es_lider else str(idx),
                 size=11,
                 weight=ft.FontWeight.BOLD,
-                color=COLOR_DORADO if es_lider else COLOR_SUBTEXTO,
+                color=(acento or COLOR_DORADO) if es_lider else COLOR_SUBTEXTO,
             ),
             width=36
         )
@@ -78,7 +78,8 @@ def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo], co
         ))
         filas.append(ft.Container(
             content=ft.Row(ctrls, spacing=2, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            bgcolor="#1FFBBF24" if es_lider else None, border_radius=8,
+            bgcolor=((acento + "1F") if acento and len(acento) == 7 else "#1FFBBF24") if es_lider else None,
+            border_radius=8,
             padding=ft.Padding.symmetric(vertical=2),
         ))
 
