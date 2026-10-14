@@ -14,6 +14,8 @@ class Partido:
     jugado: bool = False
     es_definicion: bool = False
     orden: int = 0
+    en_vivo: bool = False
+    hora: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -28,6 +30,8 @@ class Partido:
             "jugado": self.jugado,
             "es_definicion": self.es_definicion,
             "orden": self.orden,
+            "en_vivo": self.en_vivo,
+            "hora": self.hora,
         }
 
     @classmethod
@@ -44,4 +48,6 @@ class Partido:
             jugado=bool(data.get("jugado", False)),
             es_definicion=bool(data.get("es_definicion", False)),
             orden=int(data.get("orden", 0)),
+            en_vivo=bool(data.get("en_vivo", False)),
+            hora=data.get("hora", "") or "",
         )

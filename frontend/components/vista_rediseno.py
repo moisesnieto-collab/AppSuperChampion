@@ -325,7 +325,8 @@ def crear_navegacion(tab: str, bright: str, on_tab: Callable) -> ft.NavigationBa
 def crear_resumen_estado(partidos: list, copa: str, categoria: str, jornada: str, bright: str) -> ft.Control:
     """Estado: 3 cifras (Finalizados, En vivo, Por jugar) y tarjeta 'Mostrando'."""
     fin = sum(1 for p in partidos if p.jugado)
-    por_jugar = len(partidos) - fin
+    en_vivo = sum(1 for p in partidos if p.en_vivo and not p.jugado)
+    por_jugar = len(partidos) - fin - en_vivo
 
     def cifra(valor, etiqueta, color):
         return ft.Container(
@@ -341,7 +342,7 @@ def crear_resumen_estado(partidos: list, copa: str, categoria: str, jornada: str
                        ft.Text(v, size=13, weight=ft.FontWeight.W_700, color=TEXT, expand=True)])
 
     return ft.Column([
-        ft.Row([cifra(fin, "Finalizados", TEXT), cifra(0, "En vivo", LIVE), cifra(por_jugar, "Por jugar", bright)],
+        ft.Row([cifra(fin, "Finalizados", TEXT), cifra(en_vivo, "En vivo", LIVE), cifra(por_jugar, "Por jugar", bright)],
                spacing=8),
         ft.Container(
             content=ft.Row([ft.Container(width=8, height=8, border_radius=4, bgcolor=OK),

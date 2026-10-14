@@ -6,8 +6,9 @@ from config.constants import (
     oscurecer_color
 )
 from backend.models.partido import Partido
+from backend.database.repositories import PartidoRepository
 from config.constants import (
-    SURFACE, BORDER, TEXT, TEXT_2, MUTED_2, RADIO_TARJETA, OK
+    SURFACE, BORDER, TEXT, TEXT_2, MUTED_2, RADIO_TARJETA, OK, LIVE
 )
 
 
@@ -19,6 +20,10 @@ def _fila_consulta(p: Partido, bright: str) -> ft.Control:
         estado = ft.Text("Por jugar", size=11, color=MUTED_2, weight=ft.FontWeight.W_600)
     if p.es_definicion:
         estado = ft.Text("Definición", size=11, color="#F59E0B", weight=ft.FontWeight.W_700)
+    if p.en_vivo and not p.jugado:
+        estado = ft.Row([ft.Container(width=8, height=8, border_radius=4, bgcolor=LIVE),
+                         ft.Text("VIVO", size=11, color=LIVE, weight=ft.FontWeight.W_800)], spacing=4)
+    hora = ft.Text(p.hora or "", size=12, weight=ft.FontWeight.W_700, color=TEXT)
 
     def equipo(nombre, goles, gana):
         return ft.Row([
@@ -32,7 +37,7 @@ def _fila_consulta(p: Partido, bright: str) -> ft.Control:
     gv = p.jugado and p.goles_visita > p.goles_local
     return ft.Container(
         content=ft.Row([
-            ft.Container(content=ft.Column([estado], spacing=2), width=54),
+            ft.Container(content=ft.Column([hora, estado], spacing=2), width=54),
             ft.Column([equipo(p.equipo_local, p.goles_local, gl), equipo(p.equipo_visita, p.goles_visita, gv)],
                       spacing=4, expand=True),
         ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -112,6 +117,19 @@ def crear_lista_partidos(
             
             def reiniciar_marcador(e, p_id=partido.id):
                 on_reiniciar_marcador(p_id)
+
+            tf_hora = ft.TextField(
+                value=partido.hora, label="Hora", hint_text="15:30", width=90, text_size=13,
+                max_length=5, counter=ft.Text(""), dense=True,
+            )
+            sw_vivo = ft.Switch(label="VIVO", value=partido.en_vivo)
+
+            def guardar_vivo(e, p_id=partido.id, th=tf_hora, sw=sw_vivo):
+                PartidoRepository.actualizar_en_vivo(p_id, bool(sw.value), (th.value or "").strip())
+
+            tf_hora.on_blur = guardar_vivo
+            tf_hora.on_submit = guardar_vivo
+            sw_vivo.on_change = guardar_vivo
             
             fila_partido = ft.Container(
                 content=ft.Column([
@@ -161,6 +179,7 @@ def crear_lista_partidos(
                             ),
                         ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
                     ),
+                    ft.Row([tf_hora, sw_vivo], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
                     # Botones de acción (abajo)
                     ft.Container(
                         content=ft.Row([
