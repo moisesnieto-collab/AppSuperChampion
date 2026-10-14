@@ -1,5 +1,6 @@
 import flet as ft
 from typing import Callable, Optional
+from config.constants import SURFACE
 from config.constants import (
     COLOR_TARJETA, COLOR_BORDE, COLOR_CELESTE, COLOR_TEXTO,
     COLOR_SUBTEXTO, COLOR_VERDE, COLOR_ROJO, COLOR_AMBAR, COLOR_DORADO,
@@ -17,7 +18,7 @@ def crear_tarjeta_campeon(
     """
     Renderiza la tarjeta de estado del campeonato con indicador de campeón o necesidad de desempate.
     """
-    bg_tarjeta = color_copa or COLOR_TARJETA
+    bg_tarjeta = color_copa or SURFACE
     bg_secundaria = oscurecer_color(color_copa, 0.30) if color_copa else COLOR_TARJETA_SEGUNDARIA
     
     estado = estado_campeon.get("estado", "SIN_DATOS")

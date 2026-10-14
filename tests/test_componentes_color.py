@@ -1,3 +1,4 @@
+from config.constants import SURFACE
 import flet as ft
 import unittest
 from config.constants import mezclar_color, oscurecer_color, COLOR_TARJETA, COLOR_TARJETA_SEGUNDARIA
@@ -25,7 +26,7 @@ class TestComponentesColor(unittest.TestCase):
             estado_campeon={"estado": "SIN_DATOS"},
             es_organizador=False
         )
-        self.assertEqual(c_sin.bgcolor, COLOR_TARJETA)
+        self.assertEqual(c_sin.bgcolor, SURFACE)
 
         # Con color_copa
         c_con = crear_tarjeta_campeon(

@@ -81,78 +81,7 @@ def crear_lista_partidos(
         if not es_organizador:
             filas_partidos.append(_fila_consulta(partido, color_copa or OK))
             continue
-        if False:
-            fila_partido = ft.Container(
-                content=ft.Column([
-                    # Estado del partido (arriba)
-                    ft.Container(
-                        content=ft.Row([
-                            estado_icon,
-                            ft.Text(estado_texto, size=11, color=estado_color, weight=ft.FontWeight.BOLD),
-                        ], spacing=6),
-                        padding=4,
-                    ),
-                    # Equipos y marcador
-                    ft.Container(
-                        content=ft.Row([
-                            ft.Container(
-                                content=ft.Text(
-                                    partido.equipo_local,
-                                    size=14,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=COLOR_TEXTO,
-                                    text_align=ft.TextAlign.RIGHT,
-                                    max_lines=1,
-                                    overflow=ft.TextOverflow.ELLIPSIS
-                                ),
-                                expand=True
-                            ),
-                            ft.Container(
-                                content=ft.Row([
-                                    ft.Container(
-                                        content=ft.Text(
-                                            str(partido.goles_local),
-                                            size=20,
-                                            weight=ft.FontWeight.BOLD,
-                                            color=COLOR_CELESTE
-                                        ),
-                                        width=35
-                                    ),
-                                    ft.Text("-", size=18, color=COLOR_SUBTEXTO),
-                                    ft.Container(
-                                        content=ft.Text(
-                                            str(partido.goles_visita),
-                                            size=20,
-                                            weight=ft.FontWeight.BOLD,
-                                            color=COLOR_CELESTE
-                                        ),
-                                        width=35
-                                    ),
-                                ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
-                                padding=10,
-                                bgcolor=bg_secundaria,
-                                border_radius=8,
-                            ),
-                            ft.Container(
-                                content=ft.Text(
-                                    partido.equipo_visita,
-                                    size=14,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=COLOR_TEXTO,
-                                    max_lines=1,
-                                    overflow=ft.TextOverflow.ELLIPSIS
-                                ),
-                                expand=True
-                            ),
-                        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
-                    ),
-                ], spacing=6),
-                padding=10,
-                bgcolor=color_fondo,
-                border=ft.Border.all(1, COLOR_BORDE),
-                border_radius=8,
-            )
-        else:
+        if es_organizador:
             # Modo organizador: inputs editables
             tf_goles_local = ft.TextField(
                 value=str(partido.goles_local),

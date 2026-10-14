@@ -3,7 +3,7 @@ import flet as ft
 from datetime import datetime, timedelta
 from backend.database.schema import inicializar_db
 from backend.database.repositories import JornadaRepository, CampeonatoRepository, TorneoRepository
-from config.preferencias import cargar_ultima_seleccion
+from config.preferencias import cargar_ultima_seleccion, guardar_seleccion_completa, cargar_seleccion_completa
 from backend.services.torneo_service import TorneoService
 from backend.services.anio_service import AnioService
 from backend.services.campeonato_service import CampeonatoService
@@ -112,6 +112,28 @@ def main(page: ft.Page):
                         categorias = TorneoService.obtener_categorias_por_jornada(jornadas[0].id)
                         if categorias:
                             estado["categoria_activa_id"] = categorias[0].id
+
+        # Restaurar Copa, torneo, jornada, categoría y grupo guardados (si siguen siendo válidos)
+        guardado = cargar_seleccion_completa()
+        if camp_ultimo and guardado.get("campeonato_id") == camp_ultimo.id:
+            try:
+                copas_g = {c.id for c in CopaService.obtener_copas_por_campeonato(camp_ultimo.id)}
+                if guardado.get("copa_activa_id") in copas_g:
+                    estado["copa_activa_id"] = guardado["copa_activa_id"]
+                    ts = {t.id for t in TorneoRepository.obtener_por_copa(estado["copa_activa_id"])}
+                    if guardado.get("torneo_activo_id") in ts:
+                        estado["torneo_activo_id"] = guardado["torneo_activo_id"]
+                        js = {j.id for j in TorneoService.obtener_jornadas_por_torneo(estado["torneo_activo_id"])}
+                        if guardado.get("jornada_activa_id") in js:
+                            estado["jornada_activa_id"] = guardado["jornada_activa_id"]
+                            cs = {c.id for c in TorneoService.obtener_categorias_por_jornada(estado["jornada_activa_id"])}
+                            estado["categoria_activa_id"] = guardado["categoria_activa_id"] \
+                                if guardado.get("categoria_activa_id") in cs else (next(iter(cs), None))
+                            estado["grupo_filtro"] = guardado.get("grupo_filtro") or "Todos"
+                if guardado.get("tab_contenido") in ("Marcadores", "Tabla", "Estado"):
+                    estado["tab_contenido"] = guardado["tab_contenido"]
+            except Exception:
+                pass
 
     # Contenedor principal para el contenido dinámico
     contenido_principal = ft.Column([], scroll=ft.ScrollMode.AUTO, spacing=16)
@@ -698,6 +720,7 @@ def main(page: ft.Page):
         grupo_filtro = estado.get("grupo_filtro", "Todos")
 
         tab = estado.get("tab_contenido", "Marcadores")
+        guardar_seleccion_completa(estado)
 
         def elegir_tab(nombre):
             estado["tab_contenido"] = nombre

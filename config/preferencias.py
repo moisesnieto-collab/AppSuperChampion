@@ -28,3 +28,25 @@ def borrar_ultima_seleccion() -> None:
         os.remove(_ARCHIVO)
     except OSError:
         pass
+
+
+_CLAVES = ("copa_activa_id", "torneo_activo_id", "jornada_activa_id", "categoria_activa_id", "grupo_filtro", "tab_contenido")
+
+
+def guardar_seleccion_completa(estado: dict) -> None:
+    """Guarda año, campeonato, copa, torneo, jornada, categoría, grupo y pestaña."""
+    datos = {"anio_id": estado.get("anio_activo_id"), "campeonato_id": estado.get("campeonato_activo_id")}
+    datos.update({k: estado.get(k) for k in _CLAVES})
+    try:
+        with open(_ARCHIVO, "w", encoding="utf-8") as f:
+            json.dump(datos, f)
+    except OSError:
+        pass
+
+
+def cargar_seleccion_completa() -> dict:
+    try:
+        with open(_ARCHIVO, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
