@@ -1,9 +1,10 @@
+import asyncio
 import os
 import flet as ft
 from datetime import datetime, timedelta
 from backend.database.schema import inicializar_db
 from backend.database.repositories import JornadaRepository, CampeonatoRepository, TorneoRepository
-from config.preferencias import cargar_ultima_seleccion, guardar_seleccion_completa, cargar_seleccion_completa
+from config.preferencias import configurar as configurar_preferencias, cargar_ultima_seleccion, guardar_seleccion_completa, cargar_seleccion_completa
 from backend.services.torneo_service import TorneoService
 from backend.services.anio_service import AnioService
 from backend.services.campeonato_service import CampeonatoService
@@ -15,7 +16,7 @@ from config.constants import (
     estilo_pill_3d, BG, NAV_BG
 )
 from frontend.components.vista_rediseno import (
-    tema_copa, crear_cabecera_campeonato, crear_filtros, crear_estado_vacio, crear_skeleton,
+    fecha_sin_hora, tema_copa, crear_cabecera_campeonato, crear_filtros, crear_estado_vacio, crear_skeleton,
     crear_navegacion, cargar_jerarquia, crear_resumen_estado,
 )
 from frontend.components.header import crear_header
@@ -32,13 +33,15 @@ def main(page: ft.Page):
     page.fonts = {
         "Montserrat": "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf",
     }
-    page.theme = ft.Theme(font_family="Montserrat")
-    page.dark_theme = ft.Theme(font_family="Montserrat")
+    page.theme = ft.Theme(font_family="Montserrat", color_scheme_seed="#3DD598")
+    page.dark_theme = ft.Theme(font_family="Montserrat", color_scheme_seed="#3DD598")
     page.bgcolor = BG
     page.padding = 0
     page.scroll = None
     page.window_min_width = 1000
     page.window_min_height = 700
+
+    configurar_preferencias(page)
 
     # Inicializar base de datos
     inicializar_db()
@@ -136,7 +139,12 @@ def main(page: ft.Page):
                 pass
 
     # Contenedor principal para el contenido dinámico
-    contenido_principal = ft.Column([], scroll=ft.ScrollMode.AUTO, spacing=16)
+    scroll_estado = {"y": 0.0}
+
+    def _guardar_scroll(ev):
+        scroll_estado["y"] = ev.pixels
+
+    contenido_principal = ft.Column([], scroll=ft.ScrollMode.AUTO, spacing=16, on_scroll=_guardar_scroll)
 
     # Contenedor para el selector (se actualiza dinámicamente)
     selector_container = ft.Container()
@@ -675,7 +683,7 @@ def main(page: ft.Page):
         dlg_eliminar_grupo.open = True
         page.update()
 
-    def actualizar_vista():
+    def actualizar_vista(conservar_scroll: bool = False):
         """Recarga toda la vista basada en el estado actual."""
         cat_id = estado.get("categoria_activa_id")
         jornada_id = estado.get("jornada_activa_id")
@@ -696,6 +704,7 @@ def main(page: ft.Page):
             header.content = header_nuevo.content
             header.bgcolor = header_nuevo.bgcolor
             header.padding = header_nuevo.padding
+            header.visible = True
             contenido_principal.controls = []
             page.update()
             return
@@ -720,25 +729,24 @@ def main(page: ft.Page):
         grupo_filtro = estado.get("grupo_filtro", "Todos")
 
         tab = estado.get("tab_contenido", "Marcadores")
-        guardar_seleccion_completa(estado)
+        if not page.web:
+            guardar_seleccion_completa(estado)
 
         def elegir_tab(nombre):
             estado["tab_contenido"] = nombre
             actualizar_vista()
 
-        header_nuevo = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin, compacto=True)
-        header.content = header_nuevo.content
-        header.bgcolor = header_nuevo.bgcolor
-        header.padding = header_nuevo.padding
-
-        cabecera_container.content = crear_cabecera_campeonato(estado, page, on_cambio_seleccion, bright)
+        header.visible = False
+        badge = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin, solo_badge=True)
+        cabecera_container.content = crear_cabecera_campeonato(estado, page, on_cambio_seleccion, bright, badge)
         filtros_container.content = crear_filtros(
             estado, page, on_cambio_seleccion, tema, copas_c, categorias_actual, jornadas_actual, nombres_grupos)
         nav_container.content = crear_navegacion(tab, bright, elegir_tab)
 
         # Herramientas de administración (solo con PIN y modo Administrar)
         if es_org:
-            selector_container.content = crear_selector_categoria_y_dia(
+            selector_container.height = max(220, int((page.height or 700) * 0.4))
+            selector_container.content = ft.Column([crear_selector_categoria_y_dia(
                 estado, page, torneos, categorias_actual, on_cambio_seleccion,
                 on_crear_grupo=abrir_dialogo_crear_grupo,
                 on_editar_grupo=abrir_dialogo_editar_grupo,
@@ -746,9 +754,11 @@ def main(page: ft.Page):
                 on_crear_jornada=abrir_dialogo_crear_jornada,
                 on_eliminar_jornada=abrir_dialogo_eliminar_jornada,
                 on_buscar_jornada=abrir_dialogo_buscar_jornada
-            )
+            )], scroll=ft.ScrollMode.AUTO)
         else:
+            selector_container.height = None
             selector_container.content = None
+        page.bgcolor = tema["solid"]
 
         def ultima_copa_con_datos():
             for c in copas_c:
@@ -787,7 +797,7 @@ def main(page: ft.Page):
             jor = next((j for j in jornadas_actual if j.id == jornada_id), None)
             nuevos_controles.append(crear_resumen_estado(
                 todos, copa_activa.nombre if copa_activa else "", cat_nom,
-                f"{jor.nombre} · {jor.fecha}" if jor else "", bright))
+                f"{jor.nombre} · {fecha_sin_hora(jor.fecha)}" if jor else "", bright))
             nuevos_controles.append(
                 crear_tarjeta_campeon(
                     estado_campeon=estado_campeon,
@@ -832,8 +842,14 @@ def main(page: ft.Page):
                 "Aún no hay grupos en esta categoría", "Prueba otra categoría o vuelve pronto.",
                 ft.Icons.GROUPS_OUTLINED))
 
+        y_previo = scroll_estado["y"] if conservar_scroll else 0.0
         contenido_principal.controls = nuevos_controles
         page.update()
+        if conservar_scroll and y_previo > 0:
+            try:
+                page.run_task(contenido_principal.scroll_to, offset=y_previo, duration=0)
+            except Exception:
+                pass
 
     def on_cambio_rol():
         """Callback cuando cambia el rol (organizador/consulta)."""
@@ -856,7 +872,7 @@ def main(page: ft.Page):
                 duration=2000
             )
             page.snack_bar.open = True
-            actualizar_vista()
+            actualizar_vista(conservar_scroll=True)
         except Exception as e:
             page.snack_bar = ft.SnackBar(
                 content=ft.Text(f"❌ Error: {str(e)}"),
@@ -878,7 +894,7 @@ def main(page: ft.Page):
                 duration=2000
             )
             page.snack_bar.open = True
-            actualizar_vista()
+            actualizar_vista(conservar_scroll=True)
         except Exception as e:
             page.snack_bar = ft.SnackBar(
                 content=ft.Text(f"❌ Error: {str(e)}"),
@@ -985,8 +1001,35 @@ def main(page: ft.Page):
 
     page.on_resize = on_resize
 
+    def _firma_datos():
+        cat_id = estado.get("categoria_activa_id")
+        jornada_id = estado.get("jornada_activa_id")
+        if not (cat_id and jornada_id):
+            return None
+        datos = TorneoService.obtener_datos_categoria_dia(cat_id, jornada_id)
+        partidos = [p for g in datos["grupos"] for p in g["partidos"]] + list(datos["partidos_definicion"] or [])
+        return (cat_id, jornada_id, tuple(
+            (p.id, p.goles_local, p.goles_visita, p.jugado, p.en_vivo, p.hora) for p in partidos))
+
+    async def sondeo_en_vivo():
+        """Refresca la vista solo cuando cambian los marcadores; conserva el scroll."""
+        ultima = None
+        while True:
+            await asyncio.sleep(10)
+            try:
+                if estado.get("modo_admin", False):
+                    ultima = None
+                    continue
+                firma = _firma_datos()
+                if ultima is not None and firma != ultima:
+                    actualizar_vista(conservar_scroll=True)
+                ultima = firma
+            except Exception as err:
+                print(f"Error en sondeo en vivo: {err}")
+
     # Cargar vista inicial
     actualizar_vista()
+    page.run_task(sondeo_en_vivo)
 
 
 # Export ASGI app for production deployment (Render, Docker)

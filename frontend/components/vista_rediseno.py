@@ -32,6 +32,15 @@ def _etiqueta(txt: str) -> ft.Text:
     return ft.Text(txt, size=10, weight=ft.FontWeight.W_700, color=MUTED, style=ft.TextStyle(letter_spacing=1.0))
 
 
+def fecha_sin_hora(fecha) -> str:
+    """Devuelve la fecha como DD-MM-YYYY, sin la hora."""
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(str(fecha)).strftime("%d-%m-%Y")
+    except Exception:
+        return str(fecha).split("T")[0]
+
+
 def cargar_jerarquia(estado: dict, copa_id: Optional[int] = None):
     """Rellena torneo/jornada/categoría activos a partir de la copa (primer valor válido)."""
     estado["copa_activa_id"] = copa_id
@@ -129,7 +138,8 @@ def abrir_sheet_campeonato(estado: dict, page: ft.Page, on_cambio: Callable):
     ))
 
 
-def crear_cabecera_campeonato(estado: dict, page: ft.Page, on_cambio: Callable, accent: str) -> ft.Container:
+def crear_cabecera_campeonato(estado: dict, page: ft.Page, on_cambio: Callable, accent: str,
+                              badge_rol=None) -> ft.Container:
     camp = CampeonatoRepository.obtener_por_id(estado["campeonato_activo_id"]) \
         if estado.get("campeonato_activo_id") else None
     nombre = camp.nombre if camp else "Elegir campeonato"
@@ -148,7 +158,7 @@ def crear_cabecera_campeonato(estado: dict, page: ft.Page, on_cambio: Callable, 
                 tooltip="Elegir año y campeonato",
                 on_click=lambda e: abrir_sheet_campeonato(estado, page, on_cambio),
             ),
-            ft.Row([
+            badge_rol if badge_rol is not None else ft.Row([
                 ft.Icon(ft.Icons.VISIBILITY if not estado.get("modo_admin") else ft.Icons.EDIT, size=14, color=GOLD),
                 ft.Text(modo, size=11, weight=ft.FontWeight.W_700, color=GOLD),
             ], spacing=4),
@@ -260,7 +270,7 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
                       opacity=0.3 if pos <= 0 else 1, disabled=pos <= 0, on_click=lambda e: mover(-1)),
         ft.Column([
             _etiqueta("JORNADA"),
-            ft.Text(f"{jornada_act.nombre} · {jornada_act.fecha}" if jornada_act else "Sin jornadas",
+            ft.Text(f"{jornada_act.nombre} · {fecha_sin_hora(jornada_act.fecha)}" if jornada_act else "Sin jornadas",
                     size=14, weight=ft.FontWeight.W_700, color=TEXT),
         ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
         ft.IconButton(ft.Icons.CHEVRON_RIGHT, icon_color=TEXT, width=44, height=44, tooltip="Jornada siguiente",
@@ -345,7 +355,7 @@ def crear_resumen_estado(partidos: list, copa: str, categoria: str, jornada: str
         ft.Row([cifra(fin, "Finalizados", TEXT), cifra(en_vivo, "En vivo", LIVE), cifra(por_jugar, "Por jugar", bright)],
                spacing=8),
         ft.Container(
-            content=ft.Row([ft.Container(width=8, height=8, border_radius=4, bgcolor=OK),
+            content=ft.Row([PuntoPulsante(OK),
                             ft.Text("Marcadores en vivo conectados. Se actualizan solos, no necesitas refrescar.",
                                     size=12, color=TEXT_2, expand=True)], spacing=10),
             padding=12, bgcolor=SURFACE, border_radius=RADIO_TARJETA, border=ft.Border.all(1, BORDER)),
@@ -354,3 +364,29 @@ def crear_resumen_estado(partidos: list, copa: str, categoria: str, jornada: str
                                fila("Jornada", jornada)], spacing=6),
             padding=12, bgcolor=SURFACE, border_radius=RADIO_TARJETA, border=ft.Border.all(1, BORDER)),
     ], spacing=8)
+
+
+class PuntoPulsante(ft.Container):
+    """Punto de 8 px que parpadea suavemente (VIVO / conexión en vivo)."""
+
+    def __init__(self, color: str):
+        super().__init__(width=8, height=8, border_radius=4, bgcolor=color,
+                         animate_opacity=ft.Animation(700, ft.AnimationCurve.EASE_IN_OUT))
+        self._activo = False
+
+    def did_mount(self):
+        self._activo = True
+        self.page.run_task(self._pulsar)
+
+    def will_unmount(self):
+        self._activo = False
+
+    async def _pulsar(self):
+        import asyncio
+        while self._activo:
+            try:
+                self.opacity = 0.25 if self.opacity == 1 else 1
+                self.update()
+            except Exception:
+                break
+            await asyncio.sleep(0.8)

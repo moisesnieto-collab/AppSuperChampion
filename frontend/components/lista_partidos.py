@@ -12,6 +12,9 @@ from config.constants import (
 )
 
 
+from frontend.components.vista_rediseno import PuntoPulsante
+
+
 def _fila_consulta(p: Partido, bright: str) -> ft.Control:
     """Fila del spec: hora/estado a la izquierda (54 px), equipos apilados con marcador a la derecha."""
     if p.jugado:
@@ -21,7 +24,7 @@ def _fila_consulta(p: Partido, bright: str) -> ft.Control:
     if p.es_definicion:
         estado = ft.Text("Definición", size=11, color="#F59E0B", weight=ft.FontWeight.W_700)
     if p.en_vivo and not p.jugado:
-        estado = ft.Row([ft.Container(width=8, height=8, border_radius=4, bgcolor=LIVE),
+        estado = ft.Row([PuntoPulsante(LIVE),
                          ft.Text("VIVO", size=11, color=LIVE, weight=ft.FontWeight.W_800)], spacing=4)
     hora = ft.Text(p.hora or "", size=12, weight=ft.FontWeight.W_700, color=TEXT)
 

@@ -6,7 +6,7 @@ from config.constants import (
 from backend.services.torneo_service import TorneoService
 
 def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pin=None,
-                 color_copa=None, compacto: bool = False) -> ft.Container:
+                 color_copa=None, compacto: bool = False, solo_badge: bool = False) -> ft.Container:
     """
     Crea el Header principal de AppSuperChampion con indicador de rol y diálogo de PIN.
     """
@@ -71,6 +71,9 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
             ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
             padding=6,
         )
+
+    if solo_badge:
+        return badge_rol
 
     titulo = [ft.Row([
         ft.Icon(ft.Icons.EMOJI_EVENTS, color=COLOR_DORADO, size=18 if compacto else 26),
