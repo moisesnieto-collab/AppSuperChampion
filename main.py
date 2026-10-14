@@ -779,7 +779,7 @@ def main(page: ft.Page):
             grupo = g_data["grupo"]
             if tab == "Tabla":
                 nuevos_controles.append(crear_tabla_posiciones(
-                    grupo.nombre, g_data["tabla"], color_copa=color_copa, compacto=(page.width or 0) < 600))
+                    grupo.nombre, g_data["tabla"], color_copa=color_copa, compacto=True))
             if tab == "Marcadores":
                 nuevos_controles.append(
                     crear_lista_partidos(
@@ -788,7 +788,7 @@ def main(page: ft.Page):
                         es_organizador=es_org,
                         on_guardar_marcador=on_guardar_marcador,
                         on_reiniciar_marcador=on_reiniciar_marcador,
-                        color_copa=color_copa
+                        color_copa=None if es_org else bright
                     )
                 )
 
@@ -800,7 +800,7 @@ def main(page: ft.Page):
                     es_organizador=es_org,
                     on_guardar_marcador=on_guardar_marcador,
                     on_reiniciar_marcador=on_reiniciar_marcador,
-                    color_copa=color_copa
+                    color_copa=None if es_org else bright
                 )
             )
 

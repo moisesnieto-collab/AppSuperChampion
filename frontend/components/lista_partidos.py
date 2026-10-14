@@ -6,6 +6,39 @@ from config.constants import (
     oscurecer_color
 )
 from backend.models.partido import Partido
+from config.constants import (
+    SURFACE, BORDER, TEXT, TEXT_2, MUTED_2, RADIO_TARJETA, OK
+)
+
+
+def _fila_consulta(p: Partido, bright: str) -> ft.Control:
+    """Fila del spec: hora/estado a la izquierda (54 px), equipos apilados con marcador a la derecha."""
+    if p.jugado:
+        estado = ft.Text("Final", size=11, color=MUTED_2, weight=ft.FontWeight.W_600)
+    else:
+        estado = ft.Text("Por jugar", size=11, color=MUTED_2, weight=ft.FontWeight.W_600)
+    if p.es_definicion:
+        estado = ft.Text("Definición", size=11, color="#F59E0B", weight=ft.FontWeight.W_700)
+
+    def equipo(nombre, goles, gana):
+        return ft.Row([
+            ft.Text(nombre, size=13, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, color=TEXT,
+                    weight=ft.FontWeight.W_800 if gana else ft.FontWeight.W_500),
+            ft.Text(str(goles) if p.jugado else "–", size=15, color=TEXT if p.jugado else MUTED_2,
+                    weight=ft.FontWeight.W_800 if gana else ft.FontWeight.W_500, text_align=ft.TextAlign.RIGHT),
+        ])
+
+    gl = p.jugado and p.goles_local > p.goles_visita
+    gv = p.jugado and p.goles_visita > p.goles_local
+    return ft.Container(
+        content=ft.Row([
+            ft.Container(content=ft.Column([estado], spacing=2), width=54),
+            ft.Column([equipo(p.equipo_local, p.goles_local, gl), equipo(p.equipo_visita, p.goles_visita, gv)],
+                      spacing=4, expand=True),
+        ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+        border=ft.Border(bottom=ft.BorderSide(1, BORDER)),
+    )
 
 
 def crear_lista_partidos(
@@ -46,6 +79,9 @@ def crear_lista_partidos(
         
         # Modo consulta: visualización solo lectura
         if not es_organizador:
+            filas_partidos.append(_fila_consulta(partido, color_copa or OK))
+            continue
+        if False:
             fila_partido = ft.Container(
                 content=ft.Column([
                     # Estado del partido (arriba)
@@ -237,6 +273,18 @@ def crear_lista_partidos(
             )
         )
     
+    if not es_organizador:
+        acento = color_copa or OK
+        return ft.Column([
+            ft.Row([
+                ft.Container(width=8, height=8, border_radius=4, bgcolor=acento),
+                ft.Text(grupo_nombre.upper(), size=12, weight=ft.FontWeight.W_800, color=TEXT_2,
+                        style=ft.TextStyle(letter_spacing=1.2)),
+            ], spacing=8),
+            ft.Container(content=ft.Column(filas_partidos, spacing=0), bgcolor=SURFACE,
+                         border=ft.Border.all(1, BORDER), border_radius=RADIO_TARJETA),
+        ], spacing=8)
+
     return ft.Container(
         content=ft.Column([
             ft.Row([

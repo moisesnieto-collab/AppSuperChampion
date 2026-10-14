@@ -76,7 +76,11 @@ def crear_tabla_posiciones(nombre_grupo: str, tabla: List[EstadisticaEquipo], co
             width=40, padding=ft.Padding.symmetric(vertical=6), border_radius=6,
             alignment=ft.Alignment.CENTER,
         ))
-        filas.append(ft.Row(ctrls, spacing=2, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+        filas.append(ft.Container(
+            content=ft.Row(ctrls, spacing=2, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            bgcolor="#1FFBBF24" if es_lider else None, border_radius=8,
+            padding=ft.Padding.symmetric(vertical=2),
+        ))
 
     extra = []
     if compacto:

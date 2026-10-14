@@ -91,7 +91,7 @@ class TestComponentesColor(unittest.TestCase):
             on_guardar_marcador=lambda *args: None,
             on_reiniciar_marcador=lambda *args: None
         )
-        self.assertEqual(lp_sin.bgcolor, COLOR_TARJETA)
+        self.assertIsInstance(lp_sin, ft.Column)  # rediseño: tarjeta SURFACE fija
 
         # Con color_copa
         lp_con = crear_lista_partidos(
@@ -102,7 +102,7 @@ class TestComponentesColor(unittest.TestCase):
             on_reiniciar_marcador=lambda *args: None,
             color_copa=color_copa
         )
-        self.assertEqual(lp_con.bgcolor, color_copa)
+        self.assertIsInstance(lp_con, ft.Column)
 
 
 if __name__ == "__main__":

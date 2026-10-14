@@ -2,7 +2,38 @@
 sessionId: session-261013-165300-hk3z
 ---
 
-# Plan actual: subir cambios a Git y actualizar main
+# Plan actual: rediseño completo de CampeonatosLive (FLET_REDISENO_SPEC.md)
+
+### Objetivo
+Crear la rama `rediseno-ui` y aplicar el spec: una sola vista (sin pantalla Año/Campeonato), bottom sheet de campeonato, filtros compactos, `NavigationBar` (Marcadores | Tabla | Estado), fondo oscuro fijo y color de Copa solo como acento. La lógica de datos, roles (PIN Master/Organizador) y servicios no cambian.
+
+### Estado actual
+- `main.py`: `actualizar_vista` (~700-800) alterna vista inicio/campeonato; pills Marcadores/Tabla/Estado propios; `.ultima_seleccion.json` guarda la selección.
+- `selector_categoria.py`: `crear_selector_categoria_y_dia` con vista `inicio` y 5 secciones apiladas.
+- Componentes: `header.py`, `lista_partidos.py`, `tabla_posiciones.py`, `tarjeta_campeon.py`; tokens en `config/constants.py` (`estilo_pill_3d`, `mezclar_color`).
+
+### Decisiones
+- Persistencia: se mantiene el archivo `.ultima_seleccion.json` (el spec menciona `client_storage`, pero en web multiusuario conviene `page.client_storage` con el archivo como respaldo local).
+- Fuente Montserrat: se carga vía `page.fonts` con URL de Google Fonts (sin archivos locales).
+- Torneo: se oculta si hay uno solo; si hay varios, botón Filtros con bottom sheet.
+- Acciones de administración (crear/editar/eliminar): se conservan como iconos, ahora en un bottom sheet "Administrar" abierto desde el candado en modo admin.
+- Actualización en vivo parcial y skeletons: se implementan al final, de forma simple.
+
+### Pasos
+Continuar con los pasos 3 a 7 pendientes (el 2 ya está hecho), completos y en orden, con tests tras cada uno y commit final en `rediseno-ui`.
+1. HECHO: rama `rediseno-ui`. Se aplican los pasos 2 a 7 completos, en orden, ejecutando los tests tras cada uno y haciendo commit final en la rama (incluyendo `FLET_REDISENO_SPEC.md`).
+2. Tokens y tema: `config/constants.py` (BG, SURFACE, BORDER, TEXT, COPA_THEMES, radios, espaciados), `page.theme`/`fonts` en `main.py`.
+3. Cabecera + BottomSheet de campeonato (año + lista de campeonatos); eliminar la vista `inicio`.
+4. Filtros compactos: chips de Copa (44 px), Categoría (40 px), navegador de Jornada ‹ ›, control segmentado de Grupo; ocultar opciones sin datos; estado vacío con acción.
+5. `NavigationBar` y pestañas: Marcadores (6 filas por grupo, estados Final/VIVO), Tabla (`# EQUIPO PJ DG PTS`, líder resaltado), Estado (3 cifras, tarjeta en vivo, "Mostrando"). Adaptar `lista_partidos.py`, `tabla_posiciones.py`, `tarjeta_campeon.py`.
+6. Persistencia de la última selección, skeletons de carga y refresco sin perder scroll.
+7. Accesibilidad (tooltips, áreas de 44 px), tests (`venv/bin/python -m unittest discover tests`) y revisión a 390 px y escritorio según los 5 criterios del spec.
+
+### Riesgos
+APIs de Flet 1.0.3 (`NavigationBar`, `BottomSheet`, `SegmentedButton`): verificar antes de usarlas. Los componentes de administración (modales de crear/editar) dependen del selector actual y requieren reubicarse con cuidado.
+
+---
+# Plan anterior: subir cambios a Git y actualizar main
 
 Hay cambios sin commit (pantalla de inicio rediseñada, fix `jornada.nombre` en `main.py`, pills 3D, separadores). Se dejan fuera `.ultima_seleccion.json` y `backups/` (locales).
 
