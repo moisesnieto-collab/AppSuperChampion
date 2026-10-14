@@ -4,6 +4,67 @@ sessionId: session-261013-165300-hk3z
 
 # Plan actual: subir cambios a Git y actualizar main
 
+Hay cambios sin commit (pantalla de inicio rediseñada, fix `jornada.nombre` en `main.py`, pills 3D, separadores). Se dejan fuera `.ultima_seleccion.json` y `backups/` (locales).
+
+### Pasos
+1. Ejecutar `venv/bin/python -m unittest discover tests`.
+2. `git add` de los archivos modificados (sin los locales) y commit en español.
+3. `git push origin main`.
+
+---
+# Plan anterior: aplicar a la pantalla de inicio las mejoras de la segunda pantalla
+
+### Diagnóstico
+El bloque `if vista == "inicio":` de `frontend/components/selector_categoria.py` (≈ líneas 470-530) aún usa pills planos (`chips_anios`), tarjetas sin relieve, y sin separadores ni acciones como iconos. El header (`header.py`) ya es consistente.
+
+### Cambios (solo `selector_categoria.py`, sin lógica nueva)
+- Pills de año: usar `estilo_pill_3d(COLOR_CELESTE_BOTON, activo)` con `border_radius=20` y `animate=ft.Animation(150)` (hoy solo se cambia el radio).
+- Tarjetas de campeonato: aplicar `estilo_pill_3d` (degradado, borde y sombra), `animate`, y mantener `col` responsivo; la última destacada.
+- Acciones Master: reemplazar el menú ⋮ y la tarjeta "Nuevo Campeonato" por iconos (＋ nuevo año/campeonato, ✎, 🗑) bajo su objeto, con `_icono_accion`, igual que la segunda pantalla. Los chips de año pierden sus botones embebidos de editar/eliminar; se actúa sobre el año activo.
+- Estructura: etiqueta pequeña "AÑO" y "CAMPEONATO" (como `_seccion`), con `ft.Divider(color=COLOR_BORDE, height=1)` entre ellas; los años con `wrap=True` para ser responsivos.
+- Mover `_icono_accion` antes del bloque de inicio si hace falta (ya está definido antes).
+
+### Pasos
+1. Reescribir pills de año y tarjetas con `estilo_pill_3d` y animación.
+2. Pasar acciones a iconos bajo año/campeonato, con etiquetas y separadores.
+3. Ejecutar `venv/bin/python -m unittest discover tests` y revisar visualmente.
+
+---
+# Plan anterior: línea separadora entre secciones del selector
+
+### Cambio
+En `frontend/components/selector_categoria.py`, el `Column` final (≈ línea 940) apila `_seccion` de Copa, Torneo, Jornada, Categoría y Grupo sin separación. Se intercala `ft.Divider(color=COLOR_BORDE, height=1)` (la misma línea fina usada en `tabla_posiciones.py` y en el modal de Copa) entre cada par de secciones, y también bajo la cabecera. Sin cambios de lógica.
+
+### Pasos
+1. Construir la lista de secciones y intercalar el `Divider` entre ellas (4 líneas entre 5 secciones, más una bajo `cabecera`); ajustar `spacing` a 8.
+2. Ejecutar `venv/bin/python -m unittest discover tests` y revisar visualmente.
+
+---
+# Plan anterior: pills con relieve 3D y estilo más pulido
+
+### Diagnóstico
+En `selector_categoria.py` los pills (Copa, Torneo, Jornada, Categoría, Grupo) y en `main.py` las pestañas Marcadores/Tabla/Estado son contenedores planos con borde fino. Con el color de Copa (verde, rojo, azul) el pill activo y el inactivo se parecen (`mezclar_color 0.22` vs `oscurecer_color 0.30`), por lo que la selección no destaca.
+
+### Propuesta visual (sin cambiar lógica)
+- Nuevo helper `estilo_pill_3d(color_base, activo)` en `config/constants.py` que devuelve `bgcolor`, `gradient`, `border` y `shadow`.
+  - **Activo**: degradado vertical (color de Copa aclarado → color de Copa), borde superior claro, `BoxShadow` inferior (offset 0,3, blur 6) y texto blanco en negrita; da efecto botón elevado.
+  - **Inactivo**: fondo oscurecido, borde sutil y sombra pequeña; texto atenuado.
+- Paleta por Copa: verde (`#065F46`/`#1D6B43`), rojo (`#7F1D1D`/`#8C1A5C`) y azul (`#1E3A8A`/`#0066D6`) se derivan del color de Copa; el acento de pill activo usa un tono claro mezclado con blanco para que contraste en los tres casos.
+- Pills de selector y pestañas de `main.py` comparten el helper; pestañas con un indicador inferior en el color de acento.
+- Iconos de acción en círculos pequeños con sombra suave (`_icono_accion`), y tarjetas de campeonato de inicio con la misma sombra y degradado.
+- Presionado: `ink=True` y `animate` corto (`ft.Animation(150)`) para sensación táctil.
+
+### Pasos
+1. Añadir `estilo_pill_3d` y aclarar/oscurecer en `config/constants.py`.
+2. Aplicarlo a pills de `selector_categoria.py` (reemplaza el bloque de `tono_activo/tono_inactivo`) y a pills de inicio.
+3. Aplicarlo a las pestañas de `main.py`; ejecutar `venv/bin/python -m unittest discover tests` y revisar con los tres colores.
+
+### Riesgos
+Verificar en Flet 1.0.3 `ft.LinearGradient`, `ft.BoxShadow` y `ft.Alignment`. Si algo se ve recargado, bajar la sombra.
+
+---
+# Plan anterior: subir cambios a Git y actualizar main
+
 Hay 14 archivos modificados en `main` (roles Master/Organizador con PIN, tabla responsiva, reconexión, Dockerfile, tests). Se dejan fuera `.ultima_seleccion.json` y `backups/` (locales).
 
 ### Pasos

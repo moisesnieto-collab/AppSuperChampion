@@ -4,7 +4,7 @@ from datetime import datetime
 from config.constants import (
     COLOR_TARJETA, COLOR_BORDE, COLOR_CELESTE, COLOR_CELESTE_BOTON,
     COLOR_TEXTO, COLOR_SUBTEXTO, COLOR_VERDE, COLOR_AMBAR, COLOR_ROJO, COLOR_TARJETA_SEGUNDARIA, COLOR_FONDO,
-    mezclar_color, oscurecer_color
+    mezclar_color, oscurecer_color, estilo_pill_3d
 )
 from backend.models.categoria import Categoria
 from backend.models.torneo import Torneo
@@ -680,6 +680,7 @@ def crear_selector_categoria_y_dia(
     if vista == "inicio":
         page.bgcolor = COLOR_FONDO
         anio_por_id = {a.id: a.valor for a in anios}
+        color_base_inicio = COLOR_CELESTE_BOTON
         tarjetas = []
         for c in campeonatos_visibles:
             es_ultimo = (c.id == campeonato_activo_id)
@@ -690,30 +691,42 @@ def crear_selector_categoria_y_dia(
                     ft.Text(str(anio_por_id.get(c.anio_id, "")), size=11, color=COLOR_SUBTEXTO),
                 ], spacing=0, expand=True),
             ]
-            if es_master:
-                fila.append(_menu_admin([
-                    ("Editar", ft.Icons.EDIT, lambda c=c: modal_campeonato(c)),
-                    ("Eliminar", ft.Icons.DELETE, lambda c=c: eliminar_campeonato(c)),
-                ]))
             fila.append(ft.Icon(ft.Icons.CHEVRON_RIGHT, color=COLOR_SUBTEXTO, size=22))
             tarjetas.append(ft.Container(
                 content=ft.Row(fila, spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=ft.Padding.symmetric(horizontal=14, vertical=10), border_radius=14,
-                bgcolor=COLOR_CELESTE_BOTON if es_ultimo else COLOR_TARJETA_SEGUNDARIA,
-                border=ft.Border.all(1, COLOR_CELESTE if es_ultimo else COLOR_BORDE),
+                animate=ft.Animation(150),
+                **estilo_pill_3d(color_base_inicio, es_ultimo),
                 on_click=lambda ev, c=c: entrar_campeonato(c),
                 ink=True,
                 col={"xs": 12, "sm": 6, "md": 4},
             ))
+        anio_sel = next((a for a in anios if a.id == anio_activo_id), None)
+        camp_sel = next((c for c in campeonatos_visibles if c.id == campeonato_activo_id), None)
+        acc_anio, acc_camp = [], []
         if es_master:
-            tarjetas.append(ft.Container(
-                content=ft.Row([ft.Icon(ft.Icons.ADD, color=COLOR_VERDE, size=22),
-                                ft.Text("Nuevo Campeonato", color=COLOR_VERDE, weight=ft.FontWeight.BOLD)], spacing=8),
-                padding=ft.Padding.symmetric(horizontal=14, vertical=14), border_radius=14,
-                bgcolor=COLOR_TARJETA_SEGUNDARIA,
-                border=ft.Border.all(1, COLOR_VERDE), on_click=lambda ev: modal_campeonato(), ink=True,
-                col={"xs": 12, "sm": 6, "md": 4},
-            ))
+            acc_anio.append(_icono_accion(ft.Icons.ADD, COLOR_VERDE, "Nuevo año", modal_anio))
+            if anio_sel:
+                acc_anio.append(_icono_accion(ft.Icons.EDIT, COLOR_CELESTE, "Editar año", lambda: modal_anio(anio_sel)))
+                acc_anio.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar año", lambda: eliminar_anio(anio_sel)))
+            acc_camp.append(_icono_accion(ft.Icons.ADD, COLOR_VERDE, "Nuevo campeonato", modal_campeonato))
+            if camp_sel:
+                acc_camp.append(_icono_accion(ft.Icons.EDIT, COLOR_CELESTE, "Editar campeonato", lambda: modal_campeonato(camp_sel)))
+                acc_camp.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar campeonato", lambda: eliminar_campeonato(camp_sel)))
+
+        def _etiqueta(t):
+            return ft.Text(t, size=11, weight=ft.FontWeight.BOLD, color=COLOR_SUBTEXTO)
+
+        pills_anios = [
+            ft.Container(
+                content=ft.Text(str(a.valor), size=12, color=COLOR_TEXTO if a.id == anio_activo_id else COLOR_SUBTEXTO,
+                                weight=ft.FontWeight.BOLD if a.id == anio_activo_id else ft.FontWeight.NORMAL),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=8), border_radius=20,
+                animate=ft.Animation(150),
+                **estilo_pill_3d(COLOR_CELESTE_BOTON, a.id == anio_activo_id),
+                on_click=lambda ev, aid=a.id: seleccionar_anio(aid), ink=True,
+            ) for a in anios
+        ]
         if not anios or not campeonatos_visibles:
             msg = ("No hay años creados. Activa el modo Administrar y crea el primero." if not anios else
                    "No hay campeonatos en este año. Crea el primero desde el modo Administrar.")
@@ -723,15 +736,17 @@ def crear_selector_categoria_y_dia(
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8)
         else:
             vacio = None
-        for ch in chips_anios:
-            if isinstance(ch, ft.Container):
-                ch.border_radius = 20
         return ft.Container(
             content=ft.Column([
                 ft.Text("¿Qué campeonato quieres ver?", size=18, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO),
-                ft.Row(chips_anios, wrap=False, spacing=8, scroll=ft.ScrollMode.AUTO),
+                _etiqueta("AÑO"),
+                ft.Row(pills_anios, wrap=True, spacing=8, run_spacing=6),
+                ft.Row(acc_anio, spacing=0) if acc_anio else ft.Container(height=0),
+                ft.Divider(color=COLOR_BORDE, height=1),
+                _etiqueta("CAMPEONATO"),
                 vacio if vacio else ft.Container(height=0),
                 ft.ResponsiveRow(tarjetas, spacing=10, run_spacing=10),
+                ft.Row(acc_camp, spacing=0) if acc_camp else ft.Container(height=0),
             ], spacing=12),
             padding=14, bgcolor=COLOR_TARJETA, border_radius=14, border=ft.Border.all(1, COLOR_BORDE),
         )
@@ -1031,33 +1046,39 @@ def crear_selector_categoria_y_dia(
                 for sub in ctrl.controls:
                     _texto_claro(sub)
 
-        tono_activo = mezclar_color(color_copa, 0.22)  # noqa
-        tono_inactivo = oscurecer_color(color_copa, 0.30)
         for ch in (chips_copas + chips_torneos + chips_jornadas + chips_categorias + chips_grupos
                    ):
             if isinstance(ch, ft.Container):
                 if ch.bgcolor == COLOR_CELESTE_BOTON:
-                    ch.bgcolor = tono_activo
+                    for k, v in estilo_pill_3d(color_copa, True).items():
+                        setattr(ch, k, v)
                     _texto_claro(ch.content)
                 elif ch.bgcolor in (COLOR_TARJETA_SEGUNDARIA, COLOR_TARJETA):
-                    ch.bgcolor = tono_inactivo
+                    for k, v in estilo_pill_3d(color_copa, False).items():
+                        setattr(ch, k, v)
                     _texto_claro(ch.content)
 
     for ch in (chips_copas + chips_torneos + chips_jornadas + chips_categorias + chips_grupos
                ):
         if isinstance(ch, ft.Container):
             ch.border_radius = 20
+            ch.animate = ft.Animation(150)
 
     return ft.Container(
         content=ft.Column([
             cabecera,
+            ft.Divider(color=COLOR_BORDE, height=1),
             *controles_admin,
             _seccion(ft.Icons.LOCAL_BAR, "Copa", chips_copas, acc_copa),
+            ft.Divider(color=COLOR_BORDE, height=1),
             _seccion(ft.Icons.EMOJI_EVENTS, "Torneo", chips_torneos, acc_torneo),
+            ft.Divider(color=COLOR_BORDE, height=1),
             _seccion(ft.Icons.CALENDAR_TODAY, "Jornada", chips_jornadas, acc_jornada),
+            ft.Divider(color=COLOR_BORDE, height=1),
             _seccion(ft.Icons.SCHOOL, "Categoría", chips_categorias, acc_cat),
+            ft.Divider(color=COLOR_BORDE, height=1),
             _seccion(ft.Icons.GROUPS, "Grupo", chips_grupos, acc_grupo),
-        ], spacing=6),
+        ], spacing=8),
         padding=10,
         bgcolor=color_copa or COLOR_TARJETA,
         border_radius=10,

@@ -11,7 +11,8 @@ from backend.services.copa_service import CopaService
 from config.settings import APP_TITLE, APP_THEME_MODE, APP_BGCOLOR
 from config.constants import (
     COLOR_FONDO, COLOR_AMBAR, COLOR_CELESTE, COLOR_CELESTE_BOTON,
-    COLOR_VERDE, COLOR_ROJO, COLOR_SUBTEXTO, COLOR_TEXTO, COLOR_TARJETA, COLOR_BORDE
+    COLOR_VERDE, COLOR_ROJO, COLOR_SUBTEXTO, COLOR_TEXTO, COLOR_TARJETA, COLOR_BORDE,
+    estilo_pill_3d
 )
 from frontend.components.header import crear_header
 from frontend.components.selector_categoria import crear_selector_categoria_y_dia
@@ -500,7 +501,7 @@ def main(page: ft.Page):
                 ft.Text("Eliminar Jornada", weight=ft.FontWeight.BOLD, size=16),
             ]),
             content=ft.Column([
-                ft.Text(f"¿Estás seguro de eliminar la jornada '{jornada['nombre']}' ({jornada['fecha']})?"),
+                ft.Text(f"¿Estás seguro de eliminar la jornada '{jornada.nombre}' ({jornada.fecha})?"),
                 ft.Text("Esto eliminará todos los grupos y partidos de esta jornada.", color=COLOR_ROJO, size=12),
                 texto_error,
             ], spacing=10, tight=True, width=340),
@@ -747,8 +748,8 @@ def main(page: ft.Page):
                                 color=COLOR_TEXTO if n == tab else COLOR_SUBTEXTO),
                 padding=ft.Padding.symmetric(horizontal=16, vertical=8),
                 border_radius=20,
-                bgcolor=(color_copa or COLOR_CELESTE_BOTON) if n == tab else COLOR_TARJETA,
-                border=ft.Border.all(1, COLOR_BORDE),
+                animate=ft.Animation(150),
+                **estilo_pill_3d(color_copa or COLOR_CELESTE_BOTON, n == tab),
                 on_click=lambda ev, n=n: elegir_tab(n), ink=True,
             ) for n in ("Marcadores", "Tabla", "Estado")
         ], spacing=6, run_spacing=6, wrap=True))

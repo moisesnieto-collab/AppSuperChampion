@@ -47,6 +47,27 @@ def mezclar_color(hexa: str, f: float) -> str:
     return "#%02X%02X%02X" % tuple(int(c + (255 - c) * f) for c in (r, g, b))
 
 
+def estilo_pill_3d(color_base: str, activo: bool) -> dict:
+    """Atributos de Container con relieve 3D (degradado, borde y sombra) para pills y pestañas."""
+    import flet as ft
+    if activo:
+        return dict(
+            bgcolor=mezclar_color(color_base, 0.30),
+            gradient=ft.LinearGradient(
+                begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER,
+                colors=[mezclar_color(color_base, 0.50), mezclar_color(color_base, 0.20)],
+            ),
+            border=ft.Border.all(1, mezclar_color(color_base, 0.70)),
+            shadow=ft.BoxShadow(blur_radius=6, offset=ft.Offset(0, 3), color="#99000000"),
+        )
+    return dict(
+        bgcolor=oscurecer_color(color_base, 0.30),
+        gradient=None,
+        border=ft.Border.all(1, mezclar_color(color_base, 0.10)),
+        shadow=ft.BoxShadow(blur_radius=2, offset=ft.Offset(0, 1), color="#66000000"),
+    )
+
+
 def oscurecer_color(hexa: str, f: float) -> str:
     """Oscurece un color hexadecimal según factor f (0 a 1)."""
     h = hexa.lstrip("#")
