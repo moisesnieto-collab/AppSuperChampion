@@ -802,7 +802,7 @@ def main(page: ft.Page):
             grupo = g_data["grupo"]
             if tab == "Tabla":
                 nuevos_controles.append(crear_tabla_posiciones(
-                    grupo.nombre, g_data["tabla"], color_copa=color_copa, compacto=True))
+                    grupo.nombre, g_data["tabla"], color_copa=color_copa, compacto=True, acento=bright))
             if tab == "Marcadores":
                 nuevos_controles.append(
                     crear_lista_partidos(
