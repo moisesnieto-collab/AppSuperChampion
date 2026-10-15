@@ -170,6 +170,11 @@ def crear_selector_categoria_y_dia(
             value="0",
             input_filter=ft.NumbersOnlyInputFilter(),
         )
+        dd_modo_t = ft.Dropdown(
+            label="Cómo se define el campeón",
+            options=[ft.dropdown.Option(key=k, text=v) for k, v in MODOS_CAMPEON.items()],
+            value="final_lideres",
+        )
         texto_error = ft.Text("", color=COLOR_ROJO, size=12)
 
         def guardar_torneo(ev):
@@ -184,7 +189,8 @@ def crear_selector_categoria_y_dia(
             
             try:
                 orden = int(orden_str) if orden_str else 0
-                nuevo_id = TorneoService.crear_torneo(nom, tipo, copa_activa_id, orden, es_master=True)
+                nuevo_id = TorneoService.crear_torneo(nom, tipo, copa_activa_id, orden, es_master=True,
+                                                    modo_campeon=dd_modo_t.value or "final_lideres")
                 estado["torneo_activo_id"] = nuevo_id
                 estado["jornada_activa_id"] = None
                 estado["categoria_activa_id"] = None
@@ -210,6 +216,7 @@ def crear_selector_categoria_y_dia(
                 tf_nombre,
                 tf_tipo,
                 tf_orden,
+                dd_modo_t,
                 texto_error,
             ], spacing=10, tight=True, width=340),
             actions=[
@@ -222,6 +229,34 @@ def crear_selector_categoria_y_dia(
             page.overlay.append(dlg_nuevo_torneo)
         dlg_nuevo_torneo.open = True
         page.update()
+
+    def abrir_dialogo_editar_torneo(t):
+        tf_n = ft.TextField(label="Nombre del Torneo", value=t.nombre)
+        tf_o = ft.TextField(label="Orden de presentación", value=str(t.orden),
+                            input_filter=ft.NumbersOnlyInputFilter())
+        dd_m = ft.Dropdown(
+            label="Cómo se define el campeón",
+            options=[ft.dropdown.Option(key=k, text=v) for k, v in MODOS_CAMPEON.items()],
+            value=t.modo_campeon,
+        )
+        chk = ft.Checkbox(
+            label="Borrar partidos de desempate/final si cambia la regla del campeón (irreversible)",
+            value=True,
+        )
+
+        def guardar():
+            nombre = tf_n.value.strip()
+            if not nombre:
+                raise ValueError("El nombre es obligatorio")
+            nuevo = dd_m.value or "final_lideres"
+            TorneoService.actualizar_torneo(t.id, nombre, int(tf_o.value or 0), nuevo, es_master=True)
+            if chk.value and nuevo != t.modo_campeon:
+                from backend.database.repositories import PartidoRepository
+                for j in TorneoService.obtener_jornadas_por_torneo(t.id):
+                    for c in TorneoService.obtener_categorias_por_jornada(j.id):
+                        PartidoRepository.eliminar_partidos_definicion(c.id, j.id)
+
+        _modal_formulario("Editar Torneo", [tf_n, tf_o, dd_m, chk], guardar, "Guardar")
 
     def abrir_dialogo_eliminar_torneo(e):
         torneo = TorneoService.obtener_torneo_activo()
@@ -492,12 +527,7 @@ def crear_selector_categoria_y_dia(
             value=str(copa.campeonato_id if copa else campeonato_activo_id) if (copa or campeonato_activo_id) else None,
         )
 
-        # --- Reglas de la copa: campeón, puntos y orden de criterios de desempate ---
-        dd_modo = ft.Dropdown(
-            label="Cómo se define el campeón",
-            options=[ft.dropdown.Option(key=k, text=v) for k, v in MODOS_CAMPEON.items()],
-            value=copa.modo_campeon if copa else "final_lideres",
-        )
+        # --- Reglas de la copa: puntos y orden de criterios de desempate ---
         tf_pv = ft.TextField(label="Puntos por victoria", value=str(copa.puntos_victoria if copa else 3),
                              input_filter=ft.NumbersOnlyInputFilter(), expand=True)
         tf_pe = ft.TextField(label="Puntos por empate", value=str(copa.puntos_empate if copa else 1),
@@ -529,17 +559,12 @@ def crear_selector_categoria_y_dia(
                 page.update()
 
         pintar_criterios()
-        chk_borrar = ft.Checkbox(
-            label="Borrar partidos de desempate/final si cambia la regla del campeón (irreversible)",
-            value=True,
-        )
         bloque_reglas = ft.Column([
-            dd_modo,
             ft.Row([tf_pv, tf_pe], spacing=8),
             ft.Text("Desempate del puntero de grupo (tras los puntos). Marca los criterios y ordénalos:",
                     size=12, color=COLOR_SUBTEXTO),
             col_crit,
-        ] + ([chk_borrar] if copa else []), spacing=8)
+        ], spacing=8)
 
         def guardar():
             nombre = tf_nombre.value.strip()
@@ -548,17 +573,14 @@ def crear_selector_categoria_y_dia(
             if not dd_camp.value:
                 raise ValueError("Debe seleccionar un campeonato")
             reglas = dict(
-                modo_campeon=dd_modo.value or "final_lideres",
+                modo_campeon=copa.modo_campeon if copa else "final_lideres",
                 criterios_desempate=",".join(k for k in orden_crit if habilitados[k]),
                 puntos_victoria=int(tf_pv.value or 3),
                 puntos_empate=int(tf_pe.value or 1),
             )
             if copa:
                 from backend.database.repositories import CopaRepository
-                modo_anterior = copa.modo_campeon
                 CopaRepository.actualizar(copa.id, nombre, int(dd_camp.value), copa.orden, copa.activo, color_sel["v"], **reglas)
-                if chk_borrar.value and reglas["modo_campeon"] != modo_anterior:
-                    CopaService.limpiar_partidos_definicion(copa.id, es_master=True)
             else:
                 estado["campeonato_activo_id"] = int(dd_camp.value)
                 nuevo_id = CopaService.crear_copa(nombre, int(dd_camp.value), color=color_sel["v"], es_master=True, **reglas)
@@ -786,8 +808,8 @@ def crear_selector_categoria_y_dia(
         torneo_obj = next((t for t in torneos if t.id == torneo_activo_id), None)
         if torneo_obj:
             acc_torneo.append(_icono_accion(
-                ft.Icons.EDIT, COLOR_CELESTE, "Editar orden del torneo",
-                lambda: abrir_dialogo_editar_orden_torneo(torneo_obj.id, torneo_obj.nombre, torneo_obj.orden)))
+                ft.Icons.EDIT, COLOR_CELESTE, "Editar torneo",
+                lambda: abrir_dialogo_editar_torneo(torneo_obj)))
             acc_torneo.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar torneo",
                                             lambda: abrir_dialogo_eliminar_torneo(None)))
 

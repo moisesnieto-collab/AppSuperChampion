@@ -803,7 +803,7 @@ def main(page: ft.Page):
                     estado_campeon=estado_campeon,
                     es_organizador=es_org,
                     on_generar_desempate=on_generar_desempate,
-                    on_generar_final=on_generar_final if copa_activa and copa_activa.modo_campeon == "final_lideres" else None,
+                    on_generar_final=on_generar_final if datos and datos.get("copa") and datos["copa"].modo_campeon == "final_lideres" else None,
                     color_copa=color_copa
                 )
             )

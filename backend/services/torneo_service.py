@@ -44,10 +44,17 @@ class TorneoService:
         return TorneoRepository.obtener_activo()
 
     @staticmethod
-    def crear_torneo(nombre: str, tipo: str, copa_id: int, orden: int = 0, es_master: bool = False) -> int:
+    def crear_torneo(nombre: str, tipo: str, copa_id: int, orden: int = 0, es_master: bool = False,
+                     modo_campeon: str = "final_lideres") -> int:
         if not es_master:
             raise PermissionError("Solo el master puede crear torneos")
-        return TorneoRepository.crear(nombre, tipo, copa_id, orden)
+        return TorneoRepository.crear(nombre, tipo, copa_id, orden, modo_campeon=modo_campeon)
+
+    @staticmethod
+    def actualizar_torneo(torneo_id: int, nombre: str, orden: int, modo_campeon: str, es_master: bool = False):
+        if not es_master:
+            raise PermissionError("Solo el master puede editar torneos")
+        TorneoRepository.actualizar(torneo_id, nombre, orden, modo_campeon)
 
     @staticmethod
     def actualizar_orden_torneo(torneo_id: int, orden: int, es_master: bool = False):
@@ -200,7 +207,10 @@ class TorneoService:
         from backend.database.repositories import CopaRepository
         j = JornadaRepository.obtener_por_id(jornada_id)
         t = TorneoRepository.obtener_por_id(j.torneo_id) if j else None
-        return CopaRepository.obtener_por_id(t.copa_id) if t else None
+        copa = CopaRepository.obtener_por_id(t.copa_id) if t else None
+        if copa:
+            copa.modo_campeon = t.modo_campeon  # el modo de campeón lo define el torneo
+        return copa
 
     @staticmethod
     def _mejores_lideres(resultado_grupos, criterios, n=2):

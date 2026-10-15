@@ -257,43 +257,39 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
 
     # Torneo: oculto si hay uno solo; con varios, botón Filtros
     torneos = TorneoRepository.obtener_por_copa(estado["copa_activa_id"]) if estado.get("copa_activa_id") else []
-    boton_filtros = None
-    if len(torneos) > 1:
-        def elegir_torneo(tid):
-            page.pop_dialog()
-            estado["torneo_activo_id"] = tid
-            estado["jornada_activa_id"] = None
-            estado["categoria_activa_id"] = None
-            js = TorneoService.obtener_jornadas_por_torneo(tid)
-            if js:
-                estado["jornada_activa_id"] = js[0].id
-                cs = TorneoService.obtener_categorias_por_jornada(js[0].id)
-                if cs:
-                    estado["categoria_activa_id"] = cs[0].id
-            on_cambio()
+    def elegir_torneo(tid):
+        estado["torneo_activo_id"] = tid
+        estado["jornada_activa_id"] = None
+        estado["categoria_activa_id"] = None
+        estado["torneo_abierta"] = False
+        js = TorneoService.obtener_jornadas_por_torneo(tid)
+        if js:
+            estado["jornada_activa_id"] = js[0].id
+            cs = TorneoService.obtener_categorias_por_jornada(js[0].id)
+            if cs:
+                estado["categoria_activa_id"] = cs[0].id
+        on_cambio()
 
-        def abrir_filtros(e):
-            filas = [ft.Container(
-                content=ft.Text(t.nombre, size=14, weight=ft.FontWeight.W_700, color=TEXT),
-                height=56, padding=ft.Padding.symmetric(horizontal=14), border_radius=RADIO_TARJETA,
-                alignment=ft.Alignment.CENTER_LEFT, bgcolor=SURFACE,
-                border=ft.Border.all(1.5 if t.id == estado.get("torneo_activo_id") else 1,
-                                     bright if t.id == estado.get("torneo_activo_id") else BORDER),
-                on_click=lambda ev, tid=t.id: elegir_torneo(tid), ink=True,
-            ) for t in torneos]
-            page.show_dialog(ft.BottomSheet(
-                content=ft.Container(content=ft.Column(
-                    [ft.Text("Filtros · Torneo", size=18, weight=ft.FontWeight.W_800, color=TEXT), *filas],
-                    tight=True, spacing=12), padding=20, bgcolor=BG), bgcolor=BG))
-
-        boton_filtros = ft.IconButton(ft.Icons.TUNE, icon_color=bright, tooltip="Filtros (torneo)",
-                                      on_click=abrir_filtros, width=44, height=44)
+    chips_torneo = []
+    for t in torneos:
+        activo_t = t.id == estado.get("torneo_activo_id")
+        chips_torneo.append(ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.CHECK_CIRCLE, size=18, color=bright) if activo_t
+                else ft.Container(width=8, height=8, border_radius=4, bgcolor=bright),
+                ft.Text(t.nombre, size=14 if activo_t else 13,
+                        weight=ft.FontWeight.W_900 if activo_t else ft.FontWeight.W_700,
+                        color="#0B1020" if activo_t else TEXT_2),
+            ], spacing=8, tight=True),
+            height=44, padding=ft.Padding.symmetric(horizontal=16), border_radius=RADIO_COPA,
+            alignment=ft.Alignment.CENTER,
+            bgcolor=TEXT if activo_t else SURFACE_2,
+            border=ft.Border.all(3, bright) if activo_t else None,
+            opacity=1 if activo_t else 0.5,
+            on_click=lambda e, tid=t.id: elegir_torneo(tid), ink=True, tooltip=f"Torneo {t.nombre}",
+        ))
 
     # Responsivo: los chips pasan a la siguiente línea según el ancho disponible
-    fila_copas = ft.Row([*chips_copa], wrap=True, spacing=8, run_spacing=8)
-    if boton_filtros:
-        fila_copas = ft.Row([ft.Row(chips_copa, wrap=True, spacing=8, run_spacing=8, expand=True), boton_filtros],
-                            spacing=4, vertical_alignment=ft.CrossAxisAlignment.START)
 
     # Categorías
     def elegir_cat(cid):
@@ -369,7 +365,12 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
     fila_chips_copa = ft.Row(chips_copa, wrap=True, spacing=8, run_spacing=8)
 
     controles = [seccion("COPA", copa_nombre, copa_abierta, "copa_abierta", fila_chips_copa,
-                         [boton_filtros, boton_mas("copa", ["Campeonato", "Copa", "Torneo"])])]
+                         boton_mas("copa", ["Campeonato", "Copa"]))]
+    if torneos:
+        torneo_nombre = next((t.nombre for t in torneos if t.id == estado.get("torneo_activo_id")), "Seleccionar")
+        controles.append(seccion("TORNEO", torneo_nombre, estado.get("torneo_abierta", False), "torneo_abierta",
+                                 ft.Row(chips_torneo, wrap=True, spacing=8, run_spacing=8),
+                                 boton_mas("torneo", ["Torneo"])))
     mas_cat = boton_mas("categoría", ["Categoría", "Grupo"])
     if chips_cat or mas_cat:
         controles.append(seccion("CATEGORÍA", cat_nombre, cat_abierta, "cat_abierta",
