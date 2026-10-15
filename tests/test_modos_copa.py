@@ -35,9 +35,10 @@ class BaseDB(unittest.TestCase):
         self.camp_id = CampeonatoService.crear_campeonato(nombre, self.anio_id, es_master=True)
         self.copa_id = CopaService.crear_copa(
             "Copa A", self.camp_id, color="#1E3A8A", es_master=True,
-            modo_campeon=modo_campeon, criterios_desempate=criterios
+            criterios_desempate=criterios
         )
-        self.torneo_id = TorneoService.crear_torneo("Torneo 1", "Copa", self.copa_id, es_master=True)
+        self.torneo_id = TorneoService.crear_torneo("Torneo 1", "Copa", self.copa_id, es_master=True,
+                                                    modo_campeon=modo_campeon)
         self.jornada_id = JornadaRepository.crear(self.torneo_id, "2200-05-01", "Día 1", 1)
         self.cat_id = TorneoService.crear_categoria(self.jornada_id, "7° Básico", es_organizador=True)
         self.grupo_id = TorneoService.crear_grupo(self.cat_id, self.jornada_id, "Grupo A", EQUIPOS, es_organizador=True)

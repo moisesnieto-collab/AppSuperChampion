@@ -69,6 +69,13 @@ def inicializar_db():
     )
     """)
 
+    # modo_campeon vive en el torneo; al crear la columna se copia el valor de su copa
+    try:
+        cursor.execute("ALTER TABLE torneos ADD COLUMN modo_campeon TEXT DEFAULT 'final_lideres'")
+        cursor.execute("UPDATE torneos SET modo_campeon = COALESCE((SELECT c.modo_campeon FROM copas c WHERE c.id = torneos.copa_id), 'final_lideres')")
+    except Exception:
+        pass
+
     # Migración: bases antiguas tienen torneos.anio NOT NULL (reemplazado por copa_id)
     try:
         cursor.execute("PRAGMA table_info(torneos)")

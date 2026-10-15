@@ -12,6 +12,7 @@ class Torneo:
     activo: bool = True
     fecha_inicio: str = None
     fecha_fin: str = None
+    modo_campeon: str = "final_lideres"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -23,6 +24,7 @@ class Torneo:
             "activo": self.activo,
             "fecha_inicio": self.fecha_inicio,
             "fecha_fin": self.fecha_fin,
+            "modo_campeon": self.modo_campeon,
         }
 
     @classmethod
@@ -36,4 +38,5 @@ class Torneo:
             activo=bool(data.get("activo", True)),
             fecha_inicio=data.get("fecha_inicio"),
             fecha_fin=data.get("fecha_fin"),
+            modo_campeon=data.get("modo_campeon") or "final_lideres",
         )

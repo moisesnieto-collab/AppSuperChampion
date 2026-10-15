@@ -18,12 +18,13 @@ class TorneoRepository:
     def obtener_todos() -> List[Torneo]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos ORDER BY orden ASC, id DESC")
+        cursor.execute("SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin, modo_campeon FROM torneos ORDER BY orden ASC, id DESC")
         rows = cursor.fetchall()
         return [
             Torneo(
                 id=r[0], nombre=r[1], tipo=r[2], copa_id=r[3], orden=r[4],
-                activo=bool(r[5]), fecha_inicio=r[6], fecha_fin=r[7]
+                activo=bool(r[5]), fecha_inicio=r[6], fecha_fin=r[7],
+                modo_campeon=r[8] or MODO_CAMPEON_DEFECTO
             )
             for r in rows
         ]
@@ -32,12 +33,13 @@ class TorneoRepository:
     def obtener_por_copa(copa_id: int) -> List[Torneo]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE copa_id = ? ORDER BY orden ASC, id DESC", (copa_id,))
+        cursor.execute("SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin, modo_campeon FROM torneos WHERE copa_id = ? ORDER BY orden ASC, id DESC", (copa_id,))
         rows = cursor.fetchall()
         return [
             Torneo(
                 id=r[0], nombre=r[1], tipo=r[2], copa_id=r[3], orden=r[4],
-                activo=bool(r[5]), fecha_inicio=r[6], fecha_fin=r[7]
+                activo=bool(r[5]), fecha_inicio=r[6], fecha_fin=r[7],
+                modo_campeon=r[8] or MODO_CAMPEON_DEFECTO
             )
             for r in rows
         ]
@@ -47,14 +49,15 @@ class TorneoRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE id = ?",
+            "SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin, modo_campeon FROM torneos WHERE id = ?",
             (torneo_id,)
         )
         row = cursor.fetchone()
         if row:
             return Torneo(
                 id=row[0], nombre=row[1], tipo=row[2], copa_id=row[3], orden=row[4],
-                activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7]
+                activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7],
+                modo_campeon=row[8] or MODO_CAMPEON_DEFECTO
             )
         return None
 
@@ -63,23 +66,24 @@ class TorneoRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin FROM torneos WHERE activo = 1 ORDER BY orden ASC, id DESC LIMIT 1"
+            "SELECT id, nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin, modo_campeon FROM torneos WHERE activo = 1 ORDER BY orden ASC, id DESC LIMIT 1"
         )
         row = cursor.fetchone()
         if row:
             return Torneo(
                 id=row[0], nombre=row[1], tipo=row[2], copa_id=row[3], orden=row[4],
-                activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7]
+                activo=bool(row[5]), fecha_inicio=row[6], fecha_fin=row[7],
+                modo_campeon=row[8] or MODO_CAMPEON_DEFECTO
             )
         return None
 
     @staticmethod
-    def crear(nombre: str, tipo: str, copa_id: int, orden: int = 0, activo: bool = True, fecha_inicio: str = None, fecha_fin: str = None) -> int:
+    def crear(nombre: str, tipo: str, copa_id: int, orden: int = 0, activo: bool = True, fecha_inicio: str = None, fecha_fin: str = None, modo_campeon: str = MODO_CAMPEON_DEFECTO) -> int:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "INSERT INTO torneos (nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (nombre, tipo, copa_id, orden, 1 if activo else 0, fecha_inicio, fecha_fin)
+            "INSERT INTO torneos (nombre, tipo, copa_id, orden, activo, fecha_inicio, fecha_fin, modo_campeon) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (nombre, tipo, copa_id, orden, 1 if activo else 0, fecha_inicio, fecha_fin, modo_campeon)
         )
         con.commit()
         return cursor.lastrowid
@@ -91,6 +95,16 @@ class TorneoRepository:
         cursor.execute(
             "UPDATE torneos SET activo = ? WHERE id = ?",
             (1 if activo else 0, torneo_id)
+        )
+        con.commit()
+
+    @staticmethod
+    def actualizar(torneo_id: int, nombre: str, orden: int, modo_campeon: str = MODO_CAMPEON_DEFECTO):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute(
+            "UPDATE torneos SET nombre = ?, orden = ?, modo_campeon = ? WHERE id = ?",
+            (nombre, orden, modo_campeon, torneo_id)
         )
         con.commit()
 
