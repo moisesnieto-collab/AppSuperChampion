@@ -36,7 +36,9 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
         badge_rol = ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS, color=COLOR_VERDE, size=16),
-                ft.Text("Mesa de Control (Master)" if estado.get("rol") == "master" else "Mesa de Control (Organizador)", size=12, weight=ft.FontWeight.BOLD, color=COLOR_VERDE),
+                ft.Text({"master": "Mesa de Control (Master)", "marcador": "Mesa de Control (Marcadores)"}.get(
+                            estado.get("rol"), "Mesa de Control (Organizador)"), size=12, weight=ft.FontWeight.BOLD, color=COLOR_VERDE,
+                        expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                 ft.IconButton(
                     icon=ft.Icons.EDIT if not modo_admin else ft.Icons.EDIT_OFF,
                     icon_color=COLOR_AMBAR if modo_admin else COLOR_CELESTE,
@@ -54,7 +56,7 @@ def crear_header(estado: dict, page: ft.Page, on_cambio_rol, on_abrir_dialogo_pi
             ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
             bgcolor=COLOR_TARJETA,
             border=ft.Border.all(1, COLOR_VERDE),
-            padding=8,
+            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
             border_radius=8,
         )
     else:

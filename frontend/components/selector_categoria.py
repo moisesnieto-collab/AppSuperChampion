@@ -34,7 +34,8 @@ def crear_selector_categoria_y_dia(
     anios: List[Anio] = None,
     campeonatos: List[Campeonato] = None,
     copas: List[Copa] = None,
-    vista: str = "campeonato"
+    vista: str = "campeonato",
+    acciones_out: dict = None
 ) -> ft.Container:
     """
     Barra superior con botones	interactivos de Año, Campeonato, Copa, Torneo, Jornada, Categoría y Grupos.
@@ -55,7 +56,8 @@ def crear_selector_categoria_y_dia(
     cat_activa_id = estado.get("categoria_activa_id")
     grupo_filtro = estado.get("grupo_filtro", "Todos")
     # Las herramientas de edición solo aparecen con PIN y modo "Administrar" activo
-    es_organizador = bool(estado.get("es_organizador", False) and estado.get("modo_admin", False))
+    es_organizador = bool(estado.get("es_organizador", False) and estado.get("modo_admin", False)
+                          and estado.get("rol") != "marcador")
     es_master = bool(es_organizador and estado.get("rol") == "master")
 
     # Selector de Año
@@ -1004,6 +1006,21 @@ def crear_selector_categoria_y_dia(
         if grupo_activo_obj and on_eliminar_grupo:
             acc_grupo.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar grupo",
                                            lambda: on_eliminar_grupo(grupo_activo_obj.id)))
+
+    # Modo menú ⋮: no dibuja nada, solo entrega las acciones permitidas por sección
+    if acciones_out is not None:
+        acc_campeonato = []
+        if es_master:
+            acc_campeonato.append(_icono_accion(ft.Icons.ADD, COLOR_VERDE, "Nuevo campeonato", modal_campeonato))
+            camp_sel_m = next((c for c in campeonatos if c.id == campeonato_activo_id), None)
+            if camp_sel_m:
+                acc_campeonato.append(_icono_accion(ft.Icons.EDIT, COLOR_CELESTE, "Editar campeonato",
+                                                    lambda: modal_campeonato(camp_sel_m)))
+                acc_campeonato.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar campeonato",
+                                                    lambda: eliminar_campeonato(camp_sel_m)))
+        acciones_out.update({"Campeonato": acc_campeonato, "Copa": acc_copa, "Torneo": acc_torneo,
+                             "Jornada": acc_jornada, "Categoría": acc_cat, "Grupo": acc_grupo})
+        return ft.Container(height=0)
 
     def _seccion(icono, titulo, chips, acciones=None):
         """Etiqueta, pills que se adaptan al ancho y, debajo, iconos de acción."""

@@ -158,7 +158,8 @@ def crear_cabecera_campeonato(estado: dict, page: ft.Page, on_cambio: Callable, 
                 tooltip="Elegir año y campeonato",
                 on_click=lambda e: abrir_sheet_campeonato(estado, page, on_cambio),
             ),
-            badge_rol if badge_rol is not None else ft.Row([
+            ft.Container(content=badge_rol, expand=True, alignment=ft.Alignment.CENTER_RIGHT)
+            if badge_rol is not None else ft.Row([
                 ft.Icon(ft.Icons.VISIBILITY if not estado.get("modo_admin") else ft.Icons.EDIT, size=14, color=GOLD),
                 ft.Text(modo, size=11, weight=ft.FontWeight.W_700, color=GOLD),
             ], spacing=4),
@@ -168,13 +169,56 @@ def crear_cabecera_campeonato(estado: dict, page: ft.Page, on_cambio: Callable, 
 
 
 def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, copas: list,
-                  categorias: list, jornadas: list, grupos_nombres: list) -> ft.Control:
-    """Copa (44 px), Categoría (40 px), navegador de Jornada y control de Grupo."""
+                  categorias: list, jornadas: list, grupos_nombres: list,
+                  acciones: Optional[dict] = None) -> ft.Control:
+    """Copa (44 px), Categoría (40 px), navegador de Jornada y control de Grupo.
+    `acciones` ({sección: [IconButton]}) alimenta los botones ⋮ con bottom sheet de mantenedores."""
     solid, bright = tema["solid"], tema["bright"]
+    acciones = acciones or {}
+
+    def boton_mas(titulo, secciones):
+        grupos = [(s, acciones.get(s)) for s in secciones if acciones.get(s)]
+        if not grupos:
+            return None
+
+        def ejecutar(btn):
+            page.pop_dialog()
+            btn.on_click(None)
+
+        def abrir(e):
+            cuerpo = [ft.Text(f"Administrar · {titulo}", size=18, weight=ft.FontWeight.W_800, color=TEXT)]
+            for sec, btns in grupos:
+                cuerpo.append(_etiqueta(sec.upper()))
+                for b in btns:
+                    cuerpo.append(ft.Container(
+                        content=ft.Row([ft.Icon(b.icon, color=b.icon_color, size=22),
+                                        ft.Text(b.tooltip, size=14, weight=ft.FontWeight.W_700, color=TEXT,
+                                                expand=True)], spacing=12),
+                        height=52, padding=ft.Padding.symmetric(horizontal=14), border_radius=RADIO_TARJETA,
+                        bgcolor=SURFACE, border=ft.Border.all(1, BORDER),
+                        on_click=lambda ev, b=b: ejecutar(b), ink=True,
+                    ))
+            cuerpo.append(ft.Container(
+                content=ft.Row([ft.Icon(ft.Icons.ARROW_BACK, color=TEXT_2, size=20),
+                                ft.Text("Volver", size=14, weight=ft.FontWeight.W_700, color=TEXT_2)],
+                               alignment=ft.MainAxisAlignment.CENTER, spacing=8),
+                height=48, border_radius=RADIO_TARJETA, border=ft.Border.all(1, BORDER_2),
+                on_click=lambda ev: page.pop_dialog(), ink=True, tooltip="Volver sin cambios",
+            ))
+            page.show_dialog(ft.BottomSheet(
+                content=ft.Container(
+                    content=ft.Column(cuerpo, tight=True, spacing=10, scroll=ft.ScrollMode.AUTO),
+                    padding=20, bgcolor=BG,
+                    border_radius=ft.BorderRadius.only(top_left=RADIO_SHEET, top_right=RADIO_SHEET)),
+                bgcolor=BG, scrollable=True))
+
+        return ft.IconButton(ft.Icons.MORE_VERT, icon_color=TEXT_2, tooltip=f"Administrar {titulo.lower()}",
+                             on_click=abrir, width=44, height=44)
 
     # Copas: se deshabilitan (opacidad .4) las que no tienen torneos
     def elegir_copa(cid):
         cargar_jerarquia(estado, cid)
+        estado["copa_abierta"] = False
         on_cambio()
 
     chips_copa = []
@@ -182,16 +226,32 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
         t = COPA_THEMES[i % len(COPA_THEMES)]
         activa = c.id == estado.get("copa_activa_id")
         con_datos = bool(TorneoRepository.obtener_por_copa(c.id))
+        
+        # Opción 1: Borde grueso del color de copa + fondo más claro
+        if activa:
+            # Fondo más claro del color de la copa para mejor contraste
+            bg_color = TEXT
+            border = ft.Border.all(3, t["bright"])
+            text_color = "#0B1020"
+            dot_color = t["bright"]
+        else:
+            bg_color = SURFACE_2
+            border = None
+            text_color = TEXT_2
+            dot_color = t["bright"]
+        
         chips_copa.append(ft.Container(
             content=ft.Row([
-                ft.Container(width=8, height=8, border_radius=4, bgcolor=TEXT if activa else t["bright"]),
-                ft.Text(c.nombre, size=13, weight=ft.FontWeight.W_700, color=TEXT if activa else TEXT_2),
+                ft.Icon(ft.Icons.CHECK_CIRCLE, size=18, color=t["bright"]) if activa
+                else ft.Container(width=8, height=8, border_radius=4, bgcolor=dot_color),
+                ft.Text(c.nombre, size=14 if activa else 13,
+                        weight=ft.FontWeight.W_900 if activa else ft.FontWeight.W_700, color=text_color),
             ], spacing=8, tight=True),
             height=44, padding=ft.Padding.symmetric(horizontal=16), border_radius=RADIO_COPA,
             alignment=ft.Alignment.CENTER,
-            bgcolor=t["solid"] if activa else None,
-            border=None if activa else ft.Border.all(1, BORDER_2),
-            opacity=1 if con_datos else 0.4,
+            bgcolor=bg_color,
+            border=border,
+            opacity=1 if activa else (0.5 if con_datos else 0.35),
             on_click=lambda e, cid=c.id: elegir_copa(cid), ink=True, tooltip=f"Copa {c.nombre}",
         ))
 
@@ -229,15 +289,17 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
         boton_filtros = ft.IconButton(ft.Icons.TUNE, icon_color=bright, tooltip="Filtros (torneo)",
                                       on_click=abrir_filtros, width=44, height=44)
 
-    fila_copas = ft.Row([*chips_copa], scroll=ft.ScrollMode.AUTO, spacing=8)
+    # Responsivo: los chips pasan a la siguiente línea según el ancho disponible
+    fila_copas = ft.Row([*chips_copa], wrap=True, spacing=8, run_spacing=8)
     if boton_filtros:
-        fila_copas = ft.Row([ft.Row(chips_copa, scroll=ft.ScrollMode.AUTO, spacing=8, expand=True), boton_filtros],
-                            spacing=4)
+        fila_copas = ft.Row([ft.Row(chips_copa, wrap=True, spacing=8, run_spacing=8, expand=True), boton_filtros],
+                            spacing=4, vertical_alignment=ft.CrossAxisAlignment.START)
 
     # Categorías
     def elegir_cat(cid):
         estado["categoria_activa_id"] = cid
         estado["grupo_filtro"] = "Todos"
+        estado["cat_abierta"] = False
         on_cambio()
 
     chips_cat = [ft.Container(
@@ -265,6 +327,7 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
         estado["categoria_activa_id"] = next((c.id for c in cs if c.nombre == nombre_cat), cs[0].id if cs else None)
         on_cambio()
 
+    mas_jornada = boton_mas("jornada", ["Jornada"])
     nav_jornada = ft.Row([
         ft.IconButton(ft.Icons.CHEVRON_LEFT, icon_color=TEXT, width=44, height=44, tooltip="Jornada anterior",
                       opacity=0.3 if pos <= 0 else 1, disabled=pos <= 0, on_click=lambda e: mover(-1)),
@@ -276,11 +339,41 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
         ft.IconButton(ft.Icons.CHEVRON_RIGHT, icon_color=TEXT, width=44, height=44, tooltip="Jornada siguiente",
                       opacity=0.3 if pos < 0 or pos >= len(jornadas) - 1 else 1,
                       disabled=pos < 0 or pos >= len(jornadas) - 1, on_click=lambda e: mover(1)),
+        *([mas_jornada] if mas_jornada else []),
     ], alignment=ft.MainAxisAlignment.CENTER)
 
-    controles = [fila_copas]
-    if chips_cat:
-        controles.append(ft.Row(chips_cat, scroll=ft.ScrollMode.AUTO, spacing=8))
+    def seccion(titulo, valor, abierta, clave, contenido, extra=None):
+        def alternar(e):
+            estado[clave] = not estado.get(clave, False)
+            on_cambio()
+        cab = ft.Container(
+            content=ft.Row([
+                _etiqueta(titulo),
+                ft.Text(valor, size=14, weight=ft.FontWeight.W_700, color=TEXT, expand=True,
+                        max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                ft.Icon(ft.Icons.KEYBOARD_ARROW_UP if abierta else ft.Icons.KEYBOARD_ARROW_DOWN,
+                        color=bright, size=22),
+            ], spacing=10),
+            height=44, padding=ft.Padding.symmetric(horizontal=14), border_radius=RADIO_COPA,
+            bgcolor=SURFACE_2, border=ft.Border.all(1, BORDER_2), on_click=alternar, ink=True,
+            tooltip=("Ocultar " if abierta else "Cambiar ") + titulo.lower(),
+        )
+        extras = [x for x in (extra if isinstance(extra, list) else [extra]) if x is not None]
+        fila_cab = ft.Row([ft.Container(cab, expand=True), *extras], spacing=4) if extras else cab
+        return ft.Column([fila_cab, contenido] if abierta else [fila_cab], spacing=8)
+
+    copa_nombre = next((c.nombre for c in copas if c.id == estado.get("copa_activa_id")), "Seleccionar")
+    cat_nombre = next((c.nombre for c in categorias if c.id == estado.get("categoria_activa_id")), "Seleccionar")
+    copa_abierta = estado.get("copa_abierta", False)
+    cat_abierta = estado.get("cat_abierta", False)
+    fila_chips_copa = ft.Row(chips_copa, wrap=True, spacing=8, run_spacing=8)
+
+    controles = [seccion("COPA", copa_nombre, copa_abierta, "copa_abierta", fila_chips_copa,
+                         [boton_filtros, boton_mas("copa", ["Campeonato", "Copa", "Torneo"])])]
+    mas_cat = boton_mas("categoría", ["Categoría", "Grupo"])
+    if chips_cat or mas_cat:
+        controles.append(seccion("CATEGORÍA", cat_nombre, cat_abierta, "cat_abierta",
+                                 ft.Row(chips_cat, wrap=True, spacing=8, run_spacing=8), mas_cat))
     controles.append(nav_jornada)
 
     # Grupo: oculto si solo existe "Todos"
@@ -334,8 +427,8 @@ def crear_navegacion(tab: str, bright: str, on_tab: Callable) -> ft.NavigationBa
 
 def crear_resumen_estado(partidos: list, copa: str, categoria: str, jornada: str, bright: str) -> ft.Control:
     """Estado: 3 cifras (Finalizados, En vivo, Por jugar) y tarjeta 'Mostrando'."""
-    fin = sum(1 for p in partidos if p.jugado)
-    en_vivo = sum(1 for p in partidos if p.en_vivo and not p.jugado)
+    fin = sum(1 for p in partidos if p.jugado and not p.en_vivo)
+    en_vivo = sum(1 for p in partidos if p.en_vivo)
     por_jugar = len(partidos) - fin - en_vivo
 
     def cifra(valor, etiqueta, color):

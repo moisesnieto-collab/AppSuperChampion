@@ -15,3 +15,4 @@ TURSO_TOKEN = os.getenv("TURSO_TOKEN", "")
 # Seguridad PIN Organizador
 ORGANIZADOR_PIN = os.getenv("ORGANIZADOR_PIN", "1234")
 MASTER_PIN = os.getenv("MASTER_PIN", "9999")
+MARCADOR_PIN = os.getenv("MARCADOR_PIN", "5678")

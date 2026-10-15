@@ -739,25 +739,25 @@ def main(page: ft.Page):
         header.visible = False
         badge = crear_header(estado, page, on_cambio_rol, abrir_dialogo_pin, solo_badge=True)
         cabecera_container.content = crear_cabecera_campeonato(estado, page, on_cambio_seleccion, bright, badge)
-        filtros_container.content = crear_filtros(
-            estado, page, on_cambio_seleccion, tema, copas_c, categorias_actual, jornadas_actual, nombres_grupos)
-        nav_container.content = crear_navegacion(tab, bright, elegir_tab)
-
-        # Herramientas de administración (solo con PIN y modo Administrar)
+        # Herramientas de administración (solo con PIN y modo Administrar): menú ⋮ por sección
+        acciones_admin = {}
         if es_org:
-            selector_container.height = max(220, int((page.height or 700) * 0.4))
-            selector_container.content = ft.Column([crear_selector_categoria_y_dia(
+            crear_selector_categoria_y_dia(
                 estado, page, torneos, categorias_actual, on_cambio_seleccion,
                 on_crear_grupo=abrir_dialogo_crear_grupo,
                 on_editar_grupo=abrir_dialogo_editar_grupo,
                 on_eliminar_grupo=abrir_dialogo_eliminar_grupo,
                 on_crear_jornada=abrir_dialogo_crear_jornada,
                 on_eliminar_jornada=abrir_dialogo_eliminar_jornada,
-                on_buscar_jornada=abrir_dialogo_buscar_jornada
-            )], scroll=ft.ScrollMode.AUTO)
-        else:
-            selector_container.height = None
-            selector_container.content = None
+                on_buscar_jornada=abrir_dialogo_buscar_jornada,
+                acciones_out=acciones_admin,
+            )
+        selector_container.height = None
+        selector_container.content = None
+        filtros_container.content = crear_filtros(
+            estado, page, on_cambio_seleccion, tema, copas_c, categorias_actual, jornadas_actual, nombres_grupos,
+            acciones_admin)
+        nav_container.content = crear_navegacion(tab, bright, elegir_tab)
         page.bgcolor = tema["solid"]
 
         def ultima_copa_con_datos():

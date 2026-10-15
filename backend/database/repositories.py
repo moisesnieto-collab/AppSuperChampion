@@ -387,6 +387,16 @@ class PartidoRepository:
         con.commit()
 
     @staticmethod
+    def actualizar_en_vivo(partido_id: int, en_vivo: bool, hora: str = ""):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute(
+            "UPDATE partidos SET en_vivo = ?, hora = ? WHERE id = ?",
+            (1 if en_vivo else 0, hora or "", partido_id)
+        )
+        con.commit()
+
+    @staticmethod
     def eliminar_partidos_grupo(grupo_id: int, solo_no_definicion: bool = False):
         con = obtener_conexion()
         cursor = con.cursor()
@@ -432,6 +442,17 @@ class ConfiguracionRepository:
         if row:
             return row[0]
         return MASTER_PIN
+
+    @staticmethod
+    def obtener_pin_marcador() -> str:
+        from config.settings import MARCADOR_PIN
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT valor FROM configuracion WHERE clave = 'pin_marcador'")
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        return MARCADOR_PIN
 
     @staticmethod
     def actualizar_pin(nuevo_pin: str):
@@ -662,6 +683,14 @@ class CopaRepository:
         cursor = con.cursor()
         cursor.execute("UPDATE copas SET nombre = ?, campeonato_id = ?, orden = ?, activo = ?, color = ?, modo_campeon = ?, criterios_desempate = ?, puntos_victoria = ?, puntos_empate = ? WHERE id = ?",
                        (nombre, campeonato_id, orden, 1 if activo else 0, color, modo_campeon, criterios_desempate, puntos_victoria, puntos_empate, copa_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar_puntos(copa_id: int, puntos_victoria: int = 3, puntos_empate: int = 1):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE copas SET puntos_victoria = ?, puntos_empate = ? WHERE id = ?",
+                       (puntos_victoria, puntos_empate, copa_id))
         con.commit()
 
     @staticmethod

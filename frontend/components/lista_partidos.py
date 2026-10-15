@@ -7,6 +7,7 @@ from config.constants import (
 )
 from backend.models.partido import Partido
 from backend.database.repositories import PartidoRepository
+from backend.services.torneo_service import TorneoService
 from config.constants import (
     SURFACE, BORDER, TEXT, TEXT_2, MUTED_2, RADIO_TARJETA, OK, LIVE
 )
@@ -128,7 +129,16 @@ def crear_lista_partidos(
             sw_vivo = ft.Switch(label="VIVO", value=partido.en_vivo)
 
             def guardar_vivo(e, p_id=partido.id, th=tf_hora, sw=sw_vivo):
-                PartidoRepository.actualizar_en_vivo(p_id, bool(sw.value), (th.value or "").strip())
+                try:
+                    TorneoService.actualizar_en_vivo(p_id, bool(sw.value), (th.value or "").strip(),
+                                                     es_organizador=es_organizador)
+                    th.error_text = None
+                except ValueError as err:
+                    th.error_text = str(err)
+                try:
+                    th.update()
+                except Exception:
+                    pass
 
             tf_hora.on_blur = guardar_vivo
             tf_hora.on_submit = guardar_vivo
