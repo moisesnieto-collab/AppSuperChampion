@@ -39,11 +39,14 @@ def _fila_consulta(p: Partido, bright: str) -> ft.Control:
 
     gl = p.jugado and p.goles_local > p.goles_visita
     gv = p.jugado and p.goles_visita > p.goles_local
+    prog = " · ".join(x for x in ((p.hora or "").strip(), (p.cancha or "").strip()) if x)
+    cols = [equipo(p.equipo_local, p.goles_local, gl), equipo(p.equipo_visita, p.goles_visita, gv)]
+    if (p.cancha or "").strip():
+        cols.append(ft.Text(f"📍 {p.cancha.strip()}", size=12, color=TEXT_2, weight=ft.FontWeight.W_700))
     return ft.Container(
         content=ft.Row([
             ft.Container(content=ft.Column([hora, estado], spacing=2), width=54),
-            ft.Column([equipo(p.equipo_local, p.goles_local, gl), equipo(p.equipo_visita, p.goles_visita, gv)],
-                      spacing=4, expand=True),
+            ft.Column(cols, spacing=4, expand=True),
         ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=ft.Padding.symmetric(horizontal=12, vertical=8),
         border=ft.Border(bottom=ft.BorderSide(1, BORDER)),
@@ -56,7 +59,8 @@ def crear_lista_partidos(
     es_organizador: bool,
     on_guardar_marcador: Callable[[int, int, int], None],
     on_reiniciar_marcador: Callable[[int], None],
-    color_copa: Optional[str] = None
+    color_copa: Optional[str] = None,
+    on_actualizar_programacion: Optional[Callable[[int, str, str], None]] = None
 ) -> ft.Container:
     """
     Renderiza la lista de partidos del grupo con marcadores.
@@ -68,7 +72,11 @@ def crear_lista_partidos(
     
     filas_partidos = []
     
-    for partido in partidos:
+    def _orden(p):
+        return ((p.cancha or "").strip() == "", (p.cancha or "").strip().lower(),
+                (p.hora or "").strip() == "", (p.hora or "").strip())
+
+    for partido in sorted(partidos, key=_orden):
         es_definicion = partido.es_definicion
         color_fondo = "#2D1B00" if es_definicion else None
         
@@ -94,18 +102,18 @@ def crear_lista_partidos(
             # Modo organizador: inputs editables
             tf_goles_local = ft.TextField(
                 value=str(partido.goles_local),
-                width=50,
+                width=44, height=40, dense=True, content_padding=4,
                 text_align=ft.TextAlign.CENTER,
-                text_size=16,
+                text_size=15,
                 keyboard_type=ft.KeyboardType.NUMBER,
                 max_length=2,
                 counter=ft.Text("")
             )
             tf_goles_visita = ft.TextField(
                 value=str(partido.goles_visita),
-                width=50,
+                width=44, height=40, dense=True, content_padding=4,
                 text_align=ft.TextAlign.CENTER,
-                text_size=16,
+                text_size=15,
                 keyboard_type=ft.KeyboardType.NUMBER,
                 max_length=2,
                 counter=ft.Text("")
@@ -122,11 +130,20 @@ def crear_lista_partidos(
             def reiniciar_marcador(e, p_id=partido.id):
                 on_reiniciar_marcador(p_id)
 
-            tf_hora = ft.TextField(
-                value=partido.hora, label="Hora", hint_text="15:30", width=90, text_size=13,
-                max_length=5, counter=ft.Text(""), dense=True,
+            tf_cancha = ft.TextField(
+                value=partido.cancha, label="Cancha", width=170, height=52, text_size=15,
+                max_length=20, counter=ft.Text(""), dense=True, content_padding=8,
             )
-            sw_vivo = ft.Switch(label="VIVO", value=partido.en_vivo)
+            tf_hora = ft.TextField(
+                value=partido.hora, label="Hora", width=130, height=52, text_size=15,
+                max_length=5, counter=ft.Text(""), dense=True, content_padding=8,
+            )
+
+            def programar(e, p_id=partido.id, th=tf_hora, tc=tf_cancha):
+                if on_actualizar_programacion:
+                    on_actualizar_programacion(p_id, (th.value or "").strip(), (tc.value or "").strip())
+            sw_vivo = ft.Switch(label="VIVO", value=partido.en_vivo, scale=0.8,
+                                label_text_style=ft.TextStyle(size=11, weight=ft.FontWeight.W_700))
 
             def guardar_vivo(e, p_id=partido.id, th=tf_hora, sw=sw_vivo):
                 try:
@@ -140,20 +157,25 @@ def crear_lista_partidos(
                 except Exception:
                     pass
 
-            tf_hora.on_blur = guardar_vivo
-            tf_hora.on_submit = guardar_vivo
             sw_vivo.on_change = guardar_vivo
             
             fila_partido = ft.Container(
                 content=ft.Column([
                     # Estado del partido (arriba)
-                    ft.Container(
-                        content=ft.Row([
-                            estado_icon,
-                            ft.Text(estado_texto, size=11, color=estado_color, weight=ft.FontWeight.BOLD),
-                        ], spacing=6),
-                        padding=4,
-                    ),
+                    ft.Row([
+                        ft.Column([
+                            ft.Row([
+                                estado_icon,
+                                ft.Text(estado_texto, size=11, color=estado_color, weight=ft.FontWeight.BOLD),
+                            ], spacing=6),
+                            tf_cancha,
+                            ft.Row([tf_hora, ft.TextButton("Programar", icon=ft.Icons.SCHEDULE,
+                                                           tooltip="Guarda hora y cancha sin iniciar el partido",
+                                                           on_click=programar)], spacing=4),
+                        ], spacing=4),
+                        sw_vivo,
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                       vertical_alignment=ft.CrossAxisAlignment.START),
                     # Equipos y marcador
                     ft.Container(
                         content=ft.Row([
@@ -175,7 +197,7 @@ def crear_lista_partidos(
                                     ft.Text("-", size=18, color=COLOR_SUBTEXTO),
                                     tf_goles_visita,
                                 ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
-                                padding=10,
+                                padding=6,
                                 bgcolor=bg_secundaria,
                                 border_radius=8,
                             ),
@@ -192,7 +214,6 @@ def crear_lista_partidos(
                             ),
                         ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
                     ),
-                    ft.Row([tf_hora, sw_vivo], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
                     # Botones de acción (abajo)
                     ft.Container(
                         content=ft.Row([

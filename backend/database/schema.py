@@ -164,7 +164,8 @@ def inicializar_db():
     )
     """)
 
-    for _col, _def in (("en_vivo", "INTEGER DEFAULT 0"), ("hora", "TEXT DEFAULT ''")):
+    for _col, _def in (("en_vivo", "INTEGER DEFAULT 0"), ("hora", "TEXT DEFAULT ''"),
+                       ("cancha", "TEXT DEFAULT ''")):
         try:
             cursor.execute(f"ALTER TABLE partidos ADD COLUMN {_col} {_def}")
         except Exception:

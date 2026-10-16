@@ -50,6 +50,20 @@ class TestOrganizadorLogica(BaseDB):
         TorneoService.eliminar_categoria(cat2, es_organizador=True)
         self.assertEqual([c.id for c in TorneoService.obtener_categorias_por_jornada(self.jornada_id)], [self.cat_id])
 
+    def test_programacion_no_cambia_estado(self):
+        self.crear_jerarquia(2399, "OrgProg")
+        pid = self.partidos()[0].id
+        antes = PartidoRepository.obtener_por_id(pid)
+        TorneoService.actualizar_programacion(pid, "15:30", "Cancha 1", es_organizador=True)
+        p = PartidoRepository.obtener_por_id(pid)
+        self.assertEqual((p.hora, p.cancha), ("15:30", "Cancha 1"))
+        self.assertEqual((p.jugado, p.en_vivo, p.goles_local, p.goles_visita),
+                         (antes.jugado, antes.en_vivo, antes.goles_local, antes.goles_visita))
+        with self.assertRaises(PermissionError):
+            TorneoService.actualizar_programacion(pid, "15:30", "C", es_organizador=False)
+        with self.assertRaises(ValueError):
+            TorneoService.actualizar_programacion(pid, "99:99", "C", es_organizador=True)
+
     def test_puede_marcadores_vivo_y_reinicio(self):
         self.crear_jerarquia(2302, "OrgMarc")
         pid = self.partidos()[0].id

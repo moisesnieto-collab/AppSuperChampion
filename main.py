@@ -821,6 +821,7 @@ def main(page: ft.Page):
                         es_organizador=es_org,
                         on_guardar_marcador=on_guardar_marcador,
                         on_reiniciar_marcador=on_reiniciar_marcador,
+                        on_actualizar_programacion=on_actualizar_programacion,
                         color_copa=None if es_org else bright
                     )
                 )
@@ -833,6 +834,7 @@ def main(page: ft.Page):
                     es_organizador=es_org,
                     on_guardar_marcador=on_guardar_marcador,
                     on_reiniciar_marcador=on_reiniciar_marcador,
+                    on_actualizar_programacion=on_actualizar_programacion,
                     color_copa=None if es_org else bright
                 )
             )
@@ -881,6 +883,19 @@ def main(page: ft.Page):
             )
             page.snack_bar.open = True
             page.update()
+
+    def on_actualizar_programacion(partido_id: int, hora: str, cancha: str):
+        """Guarda hora y cancha sin cambiar el estado del partido."""
+        try:
+            TorneoService.actualizar_programacion(
+                partido_id, hora, cancha, es_organizador=estado.get("es_organizador", False))
+            page.snack_bar = ft.SnackBar(content=ft.Text("🕒 Programación guardada"),
+                                         bgcolor=ft.Colors.GREEN_600, duration=2000)
+        except Exception as e:
+            page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Error: {str(e)}"),
+                                         bgcolor=ft.Colors.RED_600, duration=3000)
+        page.snack_bar.open = True
+        actualizar_vista(conservar_scroll=True)
 
     def on_reiniciar_marcador(partido_id: int):
         """Callback para reiniciar un marcador."""

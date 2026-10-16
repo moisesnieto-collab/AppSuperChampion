@@ -318,7 +318,7 @@ class PartidoRepository:
         cursor.execute("""
             SELECT id, grupo_id, categoria_id, fecha_jornada_id, equipo_local, equipo_visita,
                    goles_local, goles_visita, jugado, es_definicion, orden,
-                   COALESCE(en_vivo, 0), COALESCE(hora, '')
+                   COALESCE(en_vivo, 0), COALESCE(hora, ''), COALESCE(cancha, '')
             FROM partidos
             WHERE grupo_id = ?
             ORDER BY orden ASC, id ASC
@@ -328,7 +328,7 @@ class PartidoRepository:
             Partido(
                 id=r[0], grupo_id=r[1], categoria_id=r[2], fecha_jornada_id=r[3],
                 equipo_local=r[4], equipo_visita=r[5], goles_local=r[6],
-                goles_visita=r[7], jugado=bool(r[8]), es_definicion=bool(r[9]), orden=r[10], en_vivo=bool(r[11]), hora=r[12] or ""
+                goles_visita=r[7], jugado=bool(r[8]), es_definicion=bool(r[9]), orden=r[10], en_vivo=bool(r[11]), hora=r[12] or "", cancha=r[13] or ""
             )
             for r in rows
         ]
@@ -340,7 +340,7 @@ class PartidoRepository:
         cursor.execute("""
             SELECT id, grupo_id, categoria_id, fecha_jornada_id, equipo_local, equipo_visita,
                    goles_local, goles_visita, jugado, es_definicion, orden,
-                   COALESCE(en_vivo, 0), COALESCE(hora, '')
+                   COALESCE(en_vivo, 0), COALESCE(hora, ''), COALESCE(cancha, '')
             FROM partidos
             WHERE categoria_id = ? AND fecha_jornada_id = ?
             ORDER BY grupo_id ASC, orden ASC, id ASC
@@ -350,7 +350,7 @@ class PartidoRepository:
             Partido(
                 id=r[0], grupo_id=r[1], categoria_id=r[2], fecha_jornada_id=r[3],
                 equipo_local=r[4], equipo_visita=r[5], goles_local=r[6],
-                goles_visita=r[7], jugado=bool(r[8]), es_definicion=bool(r[9]), orden=r[10], en_vivo=bool(r[11]), hora=r[12] or ""
+                goles_visita=r[7], jugado=bool(r[8]), es_definicion=bool(r[9]), orden=r[10], en_vivo=bool(r[11]), hora=r[12] or "", cancha=r[13] or ""
             )
             for r in rows
         ]
@@ -362,7 +362,7 @@ class PartidoRepository:
         cursor.execute("""
             SELECT id, grupo_id, categoria_id, fecha_jornada_id, equipo_local, equipo_visita,
                    goles_local, goles_visita, jugado, es_definicion, orden,
-                   COALESCE(en_vivo, 0), COALESCE(hora, '')
+                   COALESCE(en_vivo, 0), COALESCE(hora, ''), COALESCE(cancha, '')
             FROM partidos
             WHERE id = ?
         """, (partido_id,))
@@ -371,7 +371,7 @@ class PartidoRepository:
             return Partido(
                 id=r[0], grupo_id=r[1], categoria_id=r[2], fecha_jornada_id=r[3],
                 equipo_local=r[4], equipo_visita=r[5], goles_local=r[6],
-                goles_visita=r[7], jugado=bool(r[8]), es_definicion=bool(r[9]), orden=r[10], en_vivo=bool(r[11]), hora=r[12] or ""
+                goles_visita=r[7], jugado=bool(r[8]), es_definicion=bool(r[9]), orden=r[10], en_vivo=bool(r[11]), hora=r[12] or "", cancha=r[13] or ""
             )
         return None
 
@@ -398,6 +398,13 @@ class PartidoRepository:
             SET goles_local = ?, goles_visita = ?, jugado = ?
             WHERE id = ?
         """, (goles_local, goles_visita, 1 if jugado else 0, partido_id))
+        con.commit()
+
+    @staticmethod
+    def actualizar_programacion(partido_id: int, hora: str = "", cancha: str = ""):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("UPDATE partidos SET hora = ?, cancha = ? WHERE id = ?", (hora or "", cancha or "", partido_id))
         con.commit()
 
     @staticmethod

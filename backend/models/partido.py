@@ -16,6 +16,7 @@ class Partido:
     orden: int = 0
     en_vivo: bool = False
     hora: str = ""
+    cancha: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -32,6 +33,7 @@ class Partido:
             "orden": self.orden,
             "en_vivo": self.en_vivo,
             "hora": self.hora,
+            "cancha": self.cancha,
         }
 
     @classmethod
@@ -50,4 +52,5 @@ class Partido:
             orden=int(data.get("orden", 0)),
             en_vivo=bool(data.get("en_vivo", False)),
             hora=data.get("hora", "") or "",
+            cancha=data.get("cancha", "") or "",
         )

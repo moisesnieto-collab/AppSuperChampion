@@ -237,6 +237,18 @@ class TorneoService:
         PartidoRepository.actualizar_marcador(partido_id, goles_local, goles_visita, jugado=True)
 
     @staticmethod
+    def actualizar_programacion(partido_id: int, hora: str = "", cancha: str = "", es_organizador: bool = False):
+        if not es_organizador:
+            raise PermissionError("Acción bloqueada: solo la Mesa de Control / Organizador puede programar partidos.")
+        hora = (hora or "").strip()
+        if hora:
+            try:
+                datetime.strptime(hora, "%H:%M")
+            except ValueError:
+                raise ValueError("La hora debe tener formato HH:MM.")
+        PartidoRepository.actualizar_programacion(partido_id, hora, (cancha or "").strip())
+
+    @staticmethod
     def actualizar_en_vivo(partido_id: int, en_vivo: bool, hora: str = "", es_organizador: bool = False):
         if not es_organizador:
             raise PermissionError("Acción bloqueada: solo la Mesa de Control / Organizador puede marcar partidos en vivo.")
