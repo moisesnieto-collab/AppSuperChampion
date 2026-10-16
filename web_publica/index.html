@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperCampeones</title>
+<style>
+  :root{--bg:#0B1020;--s:#141B33;--s2:#1B2444;--b:#2A345C;--t:#F2F5FF;--t2:#B6C0E0;--m:#7E8AB3;--ok:#22C55E;--live:#EF4444}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--t);font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+  main{max-width:560px;margin:0 auto;padding:12px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  h1{font-size:18px;margin:0}
+  #estado{font-size:12px;color:var(--m)}
+  .barra{display:flex;justify-content:space-between;align-items:center;width:100%;height:44px;margin-bottom:8px;padding:0 14px;
+    background:var(--s2);border:1px solid var(--b);border-radius:12px;color:var(--t);font-size:14px;cursor:pointer}
+  .barra small{color:var(--m);font-weight:700;letter-spacing:.5px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  .chip{padding:8px 14px;border-radius:20px;background:var(--s2);border:0;color:var(--t2);opacity:.6;cursor:pointer}
+  .chip.on{background:#fff;color:#0B1020;font-weight:800;opacity:1}
+  .jor{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 12px}
+  .jor button{background:none;border:0;color:var(--t);font-size:22px;cursor:pointer}
+  .jor button:disabled{opacity:.3}
+  .partido{display:flex;gap:10px;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:10px;margin-bottom:8px}
+  .izq{width:56px;font-size:12px;color:var(--t2)}
+  .izq b{display:block;color:var(--t);font-size:13px}
+  .vivo{color:var(--live);font-weight:800}
+  .eq{display:flex;justify-content:space-between;font-size:14px;padding:2px 0}
+  .eq span:last-child{font-weight:800}
+  .centro{flex:1}
+  .cancha{font-size:12px;color:var(--t2);font-weight:700;margin-top:4px}
+  .vacio{color:var(--m);text-align:center;padding:24px}
+  .tabs{position:sticky;bottom:0;display:flex;gap:6px;background:var(--bg);padding:8px 0;margin-top:8px}
+  .tab{flex:1;padding:10px;border-radius:12px;border:1px solid var(--b);background:var(--s);color:var(--m);font-weight:700;cursor:pointer}
+  .tab.on{background:var(--s2);color:var(--t)}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:var(--s);border:1px solid var(--b);margin-bottom:10px}
+  th,td{padding:7px 4px;text-align:center}th{color:var(--m);font-size:11px}
+  td.n,th.n{text-align:left;padding-left:8px}td.p{font-weight:800;color:#7DD3FC}
+  tr.lider td.n{color:#FACC15;font-weight:800}
+  h3{font-size:12px;color:var(--m);letter-spacing:.5px;margin:10px 2px 6px}
+  .cifras{display:flex;gap:8px;margin-bottom:8px}
+  .cifra{flex:1;text-align:center;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:12px}
+  .cifra b{display:block;font-size:26px}.cifra small{color:var(--m);font-size:11px}
+  .card{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:12px;margin-bottom:8px;font-size:13px;color:var(--t2)}
+  .card b{color:var(--t)}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>🏆 SuperCampeones</h1><span id="estado">Cargando…</span></header>
+  <div id="app"></div>
+</main>
+<script>
+const REFRESCO_MS = 10000;
+// Producción: pon aquí la URL pública de R2, p. ej. "https://pub-xxxx.r2.dev/datos.json"
+const DATOS_URL = "https://pub-92c6e4ff5fa040288d6d2bdebcb0bcd2.r2.dev/datos.json";
+const sel = {tab: "Marcadores", copa: 0, torneo: 0, cat: 0, jor: 0, abierta: {copa: false, torneo: false, cat: false}};
+let datos = null, ultimoJson = "";
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const clamp = (i, arr) => Math.min(i, Math.max(arr.length - 1, 0));
+
+function barra(clave, titulo, valor) {
+  const ab = sel.abierta[clave];
+  return `<button class="barra" data-bar="${clave}"><span><small>${titulo}</small> &nbsp; ${esc(valor || "—")}</span><span>${ab ? "▲" : "▼"}</span></button>`;
+}
+function chips(clave, items, activo) {
+  if (!sel.abierta[clave]) return "";
+  return `<div class="chips">` + items.map((n, i) =>
+    `<button class="chip ${i === activo ? "on" : ""}" data-chip="${clave}" data-i="${i}">${esc(n)}</button>`).join("") + `</div>`;
+}
+function partido(p) {
+  const estado = p.vivo ? `<span class="vivo">● VIVO</span>` : p.jugado ? "Final" : "Por jugar";
+  const marc = v => (p.jugado || p.vivo) ? v : "-";
+  return `<div class="partido">
+    <div class="izq"><b>${esc(p.hora || "--:--")}</b>${estado}</div>
+    <div class="centro">
+      <div class="eq"><span>${esc(p.local)}</span><span>${marc(p.gl)}</span></div>
+      <div class="eq"><span>${esc(p.visita)}</span><span>${marc(p.gv)}</span></div>
+      ${p.cancha ? `<div class="cancha">📍 ${esc(p.cancha)}</div>` : ""}
+    </div></div>`;
+}
+function fechaTxt(j) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(j.fecha || "");
+  return m ? `Fecha ${m[3]}/${m[2]}/${m[1]}` : (j.nombre || "-");
+}
+function tabla(g) {
+  const f = (e, i) => `<tr class="${i === 0 && e.pj > 0 ? "lider" : ""}"><td>${i + 1}</td><td class="n">${esc(e.equipo)}</td>` +
+    `<td>${e.pj}</td><td>${e.pg}</td><td>${e.pe}</td><td>${e.pp}</td><td>${e.gf}</td><td>${e.gc}</td><td>${e.dg}</td><td class="p">${e.pts}</td></tr>`;
+  return `<h3>${esc(g.nombre).toUpperCase()}</h3><table><tr><th>#</th><th class="n">Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th></tr>` +
+    g.tabla.map(f).join("") + `</table>`;
+}
+function estadoVista(cat, copa, jor) {
+  const ps = cat.partidos;
+  const vivo = ps.filter(p => p.vivo).length, fin = ps.filter(p => p.jugado && !p.vivo).length;
+  const c = cat.campeon || {};
+  const camp = c.campeon ? `<div class="card">🏆 Campeón: <b>${esc(c.campeon)}</b><br>${esc(c.motivo)}</div>`
+    : (c.motivo ? `<div class="card">${esc(c.motivo)}</div>` : "");
+  return `<div class="cifras"><div class="cifra"><b>${fin}</b><small>Finalizados</small></div>` +
+    `<div class="cifra"><b style="color:var(--live)">${vivo}</b><small>En vivo</small></div>` +
+    `<div class="cifra"><b>${ps.length - fin - vivo}</b><small>Por jugar</small></div></div>` + camp +
+    `<div class="card"><h3>MOSTRANDO</h3>Copa: <b>${esc(copa.nombre)}</b><br>Categoría: <b>${esc(cat.nombre)}</b><br>${esc(fechaTxt(jor))}</div>`;
+}
+const orden = p => [!p.cancha, (p.cancha || "").toLowerCase(), !p.hora, p.hora || ""];
+function cmp(a, b) {
+  const x = orden(a), y = orden(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+  return 0;
+}
+
+function pintar() {
+  const app = document.getElementById("app");
+  if (!datos || !datos.copas.length) { app.innerHTML = `<div class="vacio">Sin datos</div>`; return; }
+  const copas = datos.copas; sel.copa = clamp(sel.copa, copas);
+  const copa = copas[sel.copa]; sel.torneo = clamp(sel.torneo, copa.torneos);
+  const torneo = copa.torneos[sel.torneo] || {nombre: "", jornadas: []};
+  sel.jor = clamp(sel.jor, torneo.jornadas);
+  const jor = torneo.jornadas[sel.jor] || {nombre: "", categorias: []};
+  sel.cat = clamp(sel.cat, jor.categorias);
+  const cat = jor.categorias[sel.cat] || {nombre: "", partidos: []};
+
+  app.innerHTML =
+    barra("copa", "COPA", copa.nombre) + chips("copa", copas.map(c => c.nombre), sel.copa) +
+    barra("torneo", "TORNEO", torneo.nombre) + chips("torneo", copa.torneos.map(t => t.nombre), sel.torneo) +
+    barra("cat", "CATEGORÍA", cat.nombre) + chips("cat", jor.categorias.map(c => c.nombre), sel.cat) +
+    `<div class="jor"><button data-jor="-1" ${sel.jor <= 0 ? "disabled" : ""}>‹</button><b>${esc(fechaTxt(jor))}</b>
+     <button data-jor="1" ${sel.jor >= torneo.jornadas.length - 1 ? "disabled" : ""}>›</button></div>` +
+    (sel.tab === "Tabla"
+      ? ((cat.grupos || []).length ? cat.grupos.map(tabla).join("") : `<div class="vacio">Sin tabla</div>`)
+      : sel.tab === "Estado" ? estadoVista(cat, copa, jor)
+      : (cat.partidos.length ? [...cat.partidos].sort(cmp).map(partido).join("") : `<div class="vacio">Sin partidos</div>`)) +
+    `<div class="tabs">` + ["Marcadores", "Tabla", "Estado"].map(t =>
+      `<button class="tab ${t === sel.tab ? "on" : ""}" data-tab="${t}">${t}</button>`).join("") + `</div>`;
+}
+
+document.addEventListener("click", e => {
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { sel.tab = tab.dataset.tab; pintar(); return; }
+  const bar = e.target.closest("[data-bar]"), chip = e.target.closest("[data-chip]"), jor = e.target.closest("[data-jor]");
+  if (bar) sel.abierta[bar.dataset.bar] = !sel.abierta[bar.dataset.bar];
+  else if (chip) {
+    const k = chip.dataset.chip; sel[k] = +chip.dataset.i; sel.abierta[k] = false;
+    if (k === "copa") { sel.torneo = 0; sel.jor = 0; sel.cat = 0; }
+    if (k === "torneo") { sel.jor = 0; sel.cat = 0; }
+  } else if (jor) sel.jor += +jor.dataset.jor;
+  else return;
+  pintar();
+});
+
+async function cargar() {
+  try {
+    const r = await fetch(DATOS_URL + "?t=" + Date.now(), {cache: "no-store"});
+    const txt = await r.text();
+    if (txt !== ultimoJson) { ultimoJson = txt; datos = JSON.parse(txt); pintar(); }
+    const seg = Math.max(0, Math.round((Date.now() - new Date(datos.actualizado)) / 1000));
+    document.getElementById("estado").textContent = "Actualizado hace " + seg + " s";
+  } catch (err) {
+    document.getElementById("estado").textContent = "Sin conexión";
+  }
+}
+cargar(); setInterval(cargar, REFRESCO_MS);
+</script>
+</body>
+</html>
