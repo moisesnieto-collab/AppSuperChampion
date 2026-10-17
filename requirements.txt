@@ -2,3 +2,4 @@ flet==1.0.3
 libsql-experimental
 python-dotenv>=1.0.0
 uvicorn
+boto3
