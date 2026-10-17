@@ -26,7 +26,7 @@ from frontend.components.lista_partidos import crear_lista_partidos
 from frontend.components.tarjeta_campeon import crear_tarjeta_campeon
 
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 _commit = (os.environ.get("RENDER_GIT_COMMIT") or "")[:7]
 VERSION_TXT = f"v{APP_VERSION}" + (f" ({_commit})" if _commit else "")
 print(f"[SuperChampion] Iniciando {VERSION_TXT}")

@@ -152,13 +152,21 @@ async function cargar() {
     const r = await fetch(DATOS_URL + "?t=" + Date.now(), {cache: "no-store"});
     const txt = await r.text();
     if (txt !== ultimoJson) { ultimoJson = txt; datos = JSON.parse(txt); pintar(); }
-    const seg = Math.max(0, Math.round((Date.now() - new Date(datos.actualizado)) / 1000));
-    document.getElementById("estado").textContent = "Actualizado hace " + seg + " s";
+    conexionOk = true; pintarEstado();
   } catch (err) {
+    conexionOk = false;
     document.getElementById("estado").textContent = "Sin conexión";
   }
 }
-cargar(); setInterval(cargar, REFRESCO_MS);
+let conexionOk = true;
+function pintarEstado() {
+  if (!conexionOk || !datos) return;
+  let t = new Date(datos.actualizado);
+  if (!/(Z|[+-]\d\d:?\d\d)$/.test(datos.actualizado)) t = new Date(datos.actualizado + "Z");
+  const seg = Math.max(0, Math.round((Date.now() - t) / 1000));
+  document.getElementById("estado").textContent = "Actualizado hace " + seg + " s";
+}
+cargar(); setInterval(cargar, REFRESCO_MS); setInterval(pintarEstado, 1000);
 </script>
 </body>
 </html>

@@ -443,6 +443,24 @@ class PartidoRepository:
 
 class ConfiguracionRepository:
     @staticmethod
+    def obtener_jornada_publica() -> Optional[int]:
+        cursor = obtener_conexion().cursor()
+        cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada_publica'")
+        row = cursor.fetchone()
+        try:
+            return int(row[0]) if row else None
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def guardar_jornada_publica(jornada_id: int):
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("DELETE FROM configuracion WHERE clave = 'jornada_publica'")
+        cursor.execute("INSERT INTO configuracion (clave, valor) VALUES ('jornada_publica', ?)", (str(jornada_id),))
+        con.commit()
+
+    @staticmethod
     def obtener_pin() -> str:
         from config.settings import ORGANIZADOR_PIN
         con = obtener_conexion()

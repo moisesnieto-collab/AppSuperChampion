@@ -329,7 +329,9 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
                       opacity=0.3 if pos <= 0 else 1, disabled=pos <= 0, on_click=lambda e: mover(-1)),
         ft.Column([
             _etiqueta("JORNADA"),
-            ft.Text(f"{jornada_act.nombre} · {fecha_sin_hora(jornada_act.fecha)}" if jornada_act else "Sin jornadas",
+            ft.Text((f"{jornada_act.nombre} · {fecha_sin_hora(jornada_act.fecha)}"
+                     + (" ★ pública" if jornada_act.id == TorneoService.obtener_jornada_publica() else ""))
+                    if jornada_act else "Sin jornadas",
                     size=14, weight=ft.FontWeight.W_700, color=TEXT),
         ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
         ft.IconButton(ft.Icons.CHEVRON_RIGHT, icon_color=TEXT, width=44, height=44, tooltip="Jornada siguiente",

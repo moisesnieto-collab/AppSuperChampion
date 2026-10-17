@@ -7,7 +7,7 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -22,40 +22,63 @@ def _filas(cur, sql, args=()):
     return cur.fetchall()
 
 
-def generar() -> dict:
+def _exportar_categoria(cur, catid, jid, nombre) -> dict:
+    partidos = [
+        {"local": r[0], "visita": r[1], "gl": r[2], "gv": r[3], "jugado": bool(r[4]),
+         "vivo": bool(r[5]), "hora": r[6] or "", "cancha": r[7] or ""}
+        for r in _filas(cur, "SELECT equipo_local, equipo_visita, goles_local, goles_visita, "
+                             "jugado, en_vivo, hora, cancha FROM partidos "
+                             "WHERE categoria_id = ? ORDER BY orden, id", (catid,))]
+    try:
+        d = TorneoService.obtener_datos_categoria_dia(catid, jid)
+        grupos = [{"nombre": g["grupo"].nombre, "tabla": [e.to_dict() for e in g["tabla"]]}
+                  for g in d["grupos"]]
+        ec = d["estado_campeon"] or {}
+        campeon = {"estado": ec.get("estado", ""), "campeon": ec.get("campeon") or "",
+                   "motivo": ec.get("motivo", "")}
+    except Exception:
+        grupos, campeon = [], {"estado": "", "campeon": "", "motivo": ""}
+    return {"id": catid, "nombre": nombre, "partidos": partidos, "grupos": grupos, "campeon": campeon}
+
+
+def resolver_jornada_id(cur, jornada_id=None):
+    """Jornada indicada, o la marcada como pública, o la primera con partidos del primer torneo activo."""
+    if jornada_id:
+        return jornada_id
+    from backend.database.repositories import ConfiguracionRepository
+    marcada = ConfiguracionRepository.obtener_jornada_publica()
+    if marcada:
+        return marcada
+    for (tid,) in _filas(cur, "SELECT t.id FROM torneos t JOIN copas c ON c.id = t.copa_id "
+                              "WHERE t.activo = 1 AND c.activo = 1 ORDER BY c.orden, c.id, t.orden, t.id"):
+        filas = _filas(cur, "SELECT j.id FROM jornadas j WHERE j.torneo_id = ? ORDER BY j.orden, j.id", (tid,))
+        for (jid,) in filas:
+            if _filas(cur, "SELECT 1 FROM partidos WHERE fecha_jornada_id = ? LIMIT 1", (jid,)):
+                return jid
+        if filas:
+            return filas[0][0]
+        break
+    return None
+
+
+def generar(jornada_id=None) -> dict:
+    """Exporta solo una jornada (con TODAS sus categorías) dentro de su copa/torneo."""
     con = obtener_conexion()
     cur = con.cursor()
-    copas = []
-    for cid, cnombre in _filas(cur, "SELECT id, nombre FROM copas WHERE activo = 1 ORDER BY orden, id"):
-        torneos = []
-        for tid, tnombre in _filas(cur, "SELECT id, nombre FROM torneos WHERE copa_id = ? AND activo = 1 "
-                                        "ORDER BY orden, id", (cid,)):
-            jornadas = []
-            for jid, jnombre, jfecha in _filas(cur, "SELECT id, nombre, fecha FROM jornadas WHERE torneo_id = ? "
-                                            "ORDER BY orden, id", (tid,)):
-                cats = []
-                for catid, cnom in _filas(cur, "SELECT id, nombre FROM categorias WHERE jornada_id = ? "
-                                               "ORDER BY orden, id", (jid,)):
-                    partidos = [
-                        {"local": r[0], "visita": r[1], "gl": r[2], "gv": r[3], "jugado": bool(r[4]),
-                         "vivo": bool(r[5]), "hora": r[6] or "", "cancha": r[7] or ""}
-                        for r in _filas(cur, "SELECT equipo_local, equipo_visita, goles_local, goles_visita, "
-                                             "jugado, en_vivo, hora, cancha FROM partidos "
-                                             "WHERE categoria_id = ? ORDER BY orden, id", (catid,))]
-                    try:
-                        d = TorneoService.obtener_datos_categoria_dia(catid, jid)
-                        grupos = [{"nombre": g["grupo"].nombre, "tabla": [e.to_dict() for e in g["tabla"]]}
-                                  for g in d["grupos"]]
-                        ec = d["estado_campeon"] or {}
-                        campeon = {"estado": ec.get("estado", ""), "campeon": ec.get("campeon") or "",
-                                   "motivo": ec.get("motivo", "")}
-                    except Exception:
-                        grupos, campeon = [], {"estado": "", "campeon": "", "motivo": ""}
-                    cats.append({"nombre": cnom, "partidos": partidos, "grupos": grupos, "campeon": campeon})
-                jornadas.append({"nombre": jnombre, "fecha": str(jfecha or ""), "categorias": cats})
-            torneos.append({"nombre": tnombre, "jornadas": jornadas})
-        copas.append({"nombre": cnombre, "torneos": torneos})
-    return {"actualizado": datetime.now().isoformat(timespec="seconds"), "copas": copas}
+    ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    jid = resolver_jornada_id(cur, jornada_id)
+    filas = _filas(cur, "SELECT j.id, j.nombre, j.fecha, t.id, t.nombre, c.id, c.nombre FROM jornadas j "
+                        "JOIN torneos t ON t.id = j.torneo_id JOIN copas c ON c.id = t.copa_id "
+                        "WHERE j.id = ?", (jid,)) if jid else []
+    if not filas:
+        return {"actualizado": ahora, "jornada_id": None, "copas": []}
+    jid, jnombre, jfecha, _tid, tnombre, _cid, cnombre = filas[0]
+    cats = [_exportar_categoria(cur, catid, jid, cnom)
+            for catid, cnom in _filas(cur, "SELECT id, nombre FROM categorias WHERE jornada_id = ? "
+                                           "ORDER BY orden, id", (jid,))]
+    jornada = {"id": jid, "nombre": jnombre, "fecha": str(jfecha or ""), "categorias": cats}
+    return {"actualizado": ahora, "jornada_id": jid,
+            "copas": [{"nombre": cnombre, "torneos": [{"nombre": tnombre, "jornadas": [jornada]}]}]}
 
 
 def subir_r2(ruta):
@@ -77,13 +100,13 @@ def subir_r2(ruta):
 _lock_escritura = threading.Lock()
 
 
-def escribir():
+def escribir(jornada_id=None, datos=None):
     with _lock_escritura:
-        _escribir()
+        _escribir(jornada_id, datos)
 
 
-def _escribir():
-    datos = generar()
+def _escribir(jornada_id=None, datos=None):
+    datos = datos if datos is not None else generar(jornada_id)
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     tmp = f"{SALIDA}.{os.getpid()}.{threading.get_ident()}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:

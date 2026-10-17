@@ -957,6 +957,36 @@ def crear_selector_categoria_y_dia(
         acc_jornada.append(_icono_accion(ft.Icons.SEARCH, COLOR_CELESTE, "Buscar jornada",
                                          lambda: on_buscar_jornada(None) if on_buscar_jornada else None))
         if jornada_activa_id:
+            def _snack(msg, ok=True):
+                page.snack_bar = ft.SnackBar(content=ft.Text(msg),
+                                             bgcolor=ft.Colors.GREEN_600 if ok else ft.Colors.RED_600, duration=3000)
+                page.snack_bar.open = True
+                page.update()
+
+            def _marcar_publica():
+                try:
+                    TorneoService.marcar_jornada_publica(jornada_activa_id, es_organizador=True)
+                    j = JornadaRepository.obtener_por_id(jornada_activa_id)
+                    _snack(f"✅ Jornada pública marcada{': ' + str(j.fecha)[:10] if j and j.fecha else ''}")
+                    on_cambio_seleccion()
+                except Exception as ex:
+                    _snack(f"❌ {ex}", False)
+
+            def _publicar_completa():
+                try:
+                    from backend.services.publicador import publicar_jornada_completa
+                    TorneoService.marcar_jornada_publica(jornada_activa_id, es_organizador=True)
+                    _snack("⏳ Publicando jornada...")
+                    publicar_jornada_completa(jornada_activa_id)
+                    _snack("✅ Jornada publicada completa")
+                    on_cambio_seleccion()
+                except Exception as ex:
+                    _snack(f"❌ Error publicando: {ex}", False)
+
+            acc_jornada.append(_icono_accion(ft.Icons.STAR, COLOR_CELESTE, "Marcar como jornada pública",
+                                             _marcar_publica))
+            acc_jornada.append(_icono_accion(ft.Icons.CLOUD_UPLOAD, COLOR_VERDE, "Publicar jornada completa",
+                                             _publicar_completa))
             acc_jornada.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar jornada",
                                              lambda: on_eliminar_jornada(None) if on_eliminar_jornada else None))
 

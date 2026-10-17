@@ -102,13 +102,7 @@ class _Conexion:
     def commit(self):
         with _cache_lock:
             _cache.clear()
-        resultado = self._con.commit()
-        try:
-            from backend.services.publicador import solicitar_publicacion
-            solicitar_publicacion()
-        except Exception:
-            pass
-        return resultado
+        return self._con.commit()
 
     def __getattr__(self, nombre):
         return getattr(self._con, nombre)

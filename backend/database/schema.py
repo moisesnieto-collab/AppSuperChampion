@@ -171,6 +171,15 @@ def inicializar_db():
         except Exception:
             pass
 
+    for _idx in ("partidos(categoria_id)", "partidos(grupo_id)", "partidos(fecha_jornada_id)",
+                 "grupos(categoria_id)", "grupos(fecha_jornada_id)", "categorias(jornada_id)",
+                 "jornadas(torneo_id)", "torneos(copa_id)", "copas(campeonato_id)"):
+        _t, _c = _idx.rstrip(")").split("(")
+        try:
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_{_t}_{_c} ON {_idx}")
+        except Exception:
+            pass
+
     con.commit()
 
     # Poblar datos por defecto si están vacíos

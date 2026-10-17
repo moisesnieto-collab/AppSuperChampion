@@ -27,6 +27,21 @@ class TorneoService:
         return None
 
     @staticmethod
+    def _publicar(partido_id: int):
+        from backend.services.publicador import publicar_categoria_de_partido
+        publicar_categoria_de_partido(partido_id)
+
+    @staticmethod
+    def marcar_jornada_publica(jornada_id: int, es_organizador: bool = False):
+        if not es_organizador:
+            raise PermissionError("Acción bloqueada: solo el organizador puede marcar la jornada pública.")
+        ConfiguracionRepository.guardar_jornada_publica(int(jornada_id))
+
+    @staticmethod
+    def obtener_jornada_publica() -> Optional[int]:
+        return ConfiguracionRepository.obtener_jornada_publica()
+
+    @staticmethod
     def cambiar_pin(pin_actual: str, pin_nuevo: str) -> bool:
         if TorneoService.validar_pin(pin_actual) != "organizador":
             return False
@@ -235,6 +250,7 @@ class TorneoService:
             raise ValueError("Los goles no pueden ser negativos.")
         
         PartidoRepository.actualizar_marcador(partido_id, goles_local, goles_visita, jugado=True)
+        TorneoService._publicar(partido_id)
 
     @staticmethod
     def actualizar_programacion(partido_id: int, hora: str = "", cancha: str = "", es_organizador: bool = False):
@@ -247,6 +263,7 @@ class TorneoService:
             except ValueError:
                 raise ValueError("La hora debe tener formato HH:MM.")
         PartidoRepository.actualizar_programacion(partido_id, hora, (cancha or "").strip())
+        TorneoService._publicar(partido_id)
 
     @staticmethod
     def actualizar_en_vivo(partido_id: int, en_vivo: bool, hora: str = "", es_organizador: bool = False):
@@ -259,12 +276,14 @@ class TorneoService:
             except ValueError:
                 raise ValueError("La hora debe tener formato HH:MM.")
         PartidoRepository.actualizar_en_vivo(partido_id, en_vivo, hora)
+        TorneoService._publicar(partido_id)
 
     @staticmethod
     def reiniciar_marcador(partido_id: int, es_organizador: bool = False):
         if not es_organizador:
             raise PermissionError("Acción bloqueada: solo la Mesa de Control / Organizador puede reiniciar marcadores.")
         PartidoRepository.actualizar_marcador(partido_id, 0, 0, jugado=False)
+        TorneoService._publicar(partido_id)
 
     @staticmethod
     def generar_partido_desempate(categoria_id: int, jornada_id: int, grupo_id: int, equipo1: str, equipo2: str, es_organizador: bool = False) -> int:
