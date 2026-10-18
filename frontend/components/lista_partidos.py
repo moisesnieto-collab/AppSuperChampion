@@ -20,7 +20,7 @@ from frontend.components.vista_rediseno import PuntoPulsante
 
 
 # Un único hilo de guardado: reutiliza la misma conexión Turso (conexión por hilo)
-_EJECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix='guardar')
+_EJECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='guardar')
 
 
 def _fila_consulta(p: Partido, bright: str) -> ft.Control:
@@ -214,13 +214,13 @@ def crear_lista_partidos(
                     except Exception:
                         pass
                     finally:
-                        resto = 0.7 - (time.time() - t0)
-                        if resto > 0:
-                            time.sleep(resto)
                         if ok:
                             _ocupado((bg, br), True, "✅ Guardado")
-                            time.sleep(1.0)
-                        _ocupado((bg, br), False, "💾 Guardar")
+                            t = threading.Timer(1.0, _ocupado, ((bg, br), False, "💾 Guardar"))
+                            t.daemon = True
+                            t.start()
+                        else:
+                            _ocupado((bg, br), False, "💾 Guardar")
                 _ocupado((bg, br), True, "⏳ Guardando…")
                 _EJECUTOR.submit(trabajo)
 

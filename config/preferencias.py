@@ -18,10 +18,18 @@ def configurar(page) -> None:
     page.services.append(_prefs)
 
 
+async def _seguro(fn, *args):
+    """Ejecuta una llamada a SharedPreferences sin propagar errores (evita trazas en el log)."""
+    try:
+        return await fn(*args)
+    except Exception:
+        return None
+
+
 def _leer() -> dict:
     if _prefs is not None:
         try:
-            raw = _page.run_task(_prefs.get, _KEY).result(timeout=5)
+            raw = _page.run_task(_seguro, _prefs.get, _KEY).result(timeout=5)
             return json.loads(raw) if raw else {}
         except Exception:
             return {}
@@ -35,7 +43,7 @@ def _leer() -> dict:
 def _escribir(datos: dict) -> None:
     if _prefs is not None:
         try:
-            _page.run_task(_prefs.set, _KEY, json.dumps(datos))
+            _page.run_task(_seguro, _prefs.set, _KEY, json.dumps(datos))
         except Exception:
             pass
         return
@@ -62,7 +70,7 @@ def cargar_ultima_seleccion() -> Tuple[Optional[int], Optional[int]]:
 def borrar_ultima_seleccion() -> None:
     if _prefs is not None:
         try:
-            _page.run_task(_prefs.remove, _KEY)
+            _page.run_task(_seguro, _prefs.remove, _KEY)
         except Exception:
             pass
         return
