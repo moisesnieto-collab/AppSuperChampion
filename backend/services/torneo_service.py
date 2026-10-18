@@ -27,7 +27,11 @@ class TorneoService:
         return None
 
     @staticmethod
-    def _publicar(partido_id: int):
+    def _publicar(partido_id: int, categoria_id: Optional[int] = None):
+        if categoria_id:
+            from backend.services.publicador import publicar_categoria
+            publicar_categoria(categoria_id)
+            return
         from backend.services.publicador import publicar_categoria_de_partido
         publicar_categoria_de_partido(partido_id)
 
@@ -239,7 +243,21 @@ class TorneoService:
         return sorted(lideres, key=clave)[:n]
 
     @staticmethod
-    def guardar_marcador(partido_id: int, goles_local: int, goles_visita: int, es_organizador: bool = False):
+    def guardar_marcadores(marcadores, es_organizador: bool = False, categoria_id: Optional[int] = None):
+        """Guarda varios marcadores [(partido_id, gl, gv)] en una sola transacción."""
+        if not es_organizador:
+            raise PermissionError("Acción bloqueada: solo la Mesa de Control / Organizador puede registrar marcadores.")
+        marcadores = [(int(p), int(a), int(b)) for p, a, b in marcadores]
+        if any(a < 0 or b < 0 for _, a, b in marcadores):
+            raise ValueError("Los goles no pueden ser negativos.")
+        if not marcadores:
+            return
+        PartidoRepository.actualizar_marcadores_lote(marcadores)
+        TorneoService._publicar(marcadores[0][0], categoria_id)
+
+    @staticmethod
+    def guardar_marcador(partido_id: int, goles_local: int, goles_visita: int, es_organizador: bool = False,
+                         categoria_id: Optional[int] = None):
         """
         Guarda o actualiza el marcador de un partido.
         """
@@ -250,7 +268,7 @@ class TorneoService:
             raise ValueError("Los goles no pueden ser negativos.")
         
         PartidoRepository.actualizar_marcador(partido_id, goles_local, goles_visita, jugado=True)
-        TorneoService._publicar(partido_id)
+        TorneoService._publicar(partido_id, categoria_id)
 
     @staticmethod
     def actualizar_programacion(partido_id: int, hora: str = "", cancha: str = "", es_organizador: bool = False):

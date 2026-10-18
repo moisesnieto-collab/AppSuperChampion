@@ -401,6 +401,16 @@ class PartidoRepository:
         con.commit()
 
     @staticmethod
+    def actualizar_marcadores_lote(marcadores):
+        """Actualiza varios marcadores [(id, gl, gv)] en una sola transacción."""
+        con = obtener_conexion()
+        cursor = con.cursor()
+        for pid, gl, gv in marcadores:
+            cursor.execute("UPDATE partidos SET goles_local = ?, goles_visita = ?, jugado = 1 WHERE id = ?",
+                           (gl, gv, pid))
+        con.commit()
+
+    @staticmethod
     def actualizar_programacion(partido_id: int, hora: str = "", cancha: str = ""):
         con = obtener_conexion()
         cursor = con.cursor()

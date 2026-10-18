@@ -26,7 +26,7 @@ from frontend.components.lista_partidos import crear_lista_partidos
 from frontend.components.tarjeta_campeon import crear_tarjeta_campeon
 
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 _commit = (os.environ.get("RENDER_GIT_COMMIT") or "")[:7]
 VERSION_TXT = f"v{APP_VERSION}" + (f" ({_commit})" if _commit else "")
 print(f"[SuperChampion] Iniciando {VERSION_TXT}")
@@ -828,6 +828,7 @@ def main(page: ft.Page):
                         on_guardar_marcador=on_guardar_marcador,
                         on_reiniciar_marcador=on_reiniciar_marcador,
                         on_actualizar_programacion=on_actualizar_programacion,
+                        on_guardar_todos=on_guardar_todos,
                         color_copa=None if es_org else bright
                     )
                 )
@@ -869,26 +870,40 @@ def main(page: ft.Page):
 
     def on_guardar_marcador(partido_id: int, goles_local: int, goles_visita: int):
         """Callback para guardar un marcador."""
+        # Solo guarda; la tarjeta se actualiza sola (sin reconstruir toda la vista).
         try:
             TorneoService.guardar_marcador(
-                partido_id, goles_local, goles_visita, 
-                es_organizador=estado.get("es_organizador", False)
+                partido_id, goles_local, goles_visita,
+                es_organizador=estado.get("es_organizador", False),
+                categoria_id=estado.get("categoria_activa_id")
             )
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("✅ Marcador guardado"),
-                bgcolor=ft.Colors.GREEN_600,
-                duration=2000
-            )
-            page.snack_bar.open = True
-            actualizar_vista(conservar_scroll=True)
-        except Exception as e:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"❌ Error: {str(e)}"),
-                bgcolor=ft.Colors.RED_600,
-                duration=3000
-            )
+            page.snack_bar = ft.SnackBar(content=ft.Text("✅ Marcador guardado"),
+                                         bgcolor=ft.Colors.GREEN_600, duration=1500)
             page.snack_bar.open = True
             page.update()
+        except Exception as e:
+            page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Error: {str(e)}"),
+                                         bgcolor=ft.Colors.RED_600, duration=3000)
+            page.snack_bar.open = True
+            page.update()
+            raise
+
+    def on_guardar_todos(lote) -> bool:
+        """Guarda varios marcadores en una sola transacción."""
+        try:
+            TorneoService.guardar_marcadores(
+                lote, es_organizador=estado.get("es_organizador", False),
+                categoria_id=estado.get("categoria_activa_id"))
+            page.snack_bar = ft.SnackBar(content=ft.Text(f"✅ {len(lote)} marcadores guardados"),
+                                         bgcolor=ft.Colors.GREEN_600, duration=2000)
+            ok = True
+        except Exception as e:
+            page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Error: {str(e)}"),
+                                         bgcolor=ft.Colors.RED_600, duration=3000)
+            ok = False
+        page.snack_bar.open = True
+        page.update()
+        return ok
 
     def on_actualizar_programacion(partido_id: int, hora: str, cancha: str):
         """Guarda hora y cancha sin cambiar el estado del partido."""
@@ -909,21 +924,16 @@ def main(page: ft.Page):
             TorneoService.reiniciar_marcador(
                 partido_id, es_organizador=estado.get("es_organizador", False)
             )
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("🔄 Marcador reiniciado"),
-                bgcolor=ft.Colors.AMBER_600,
-                duration=2000
-            )
-            page.snack_bar.open = True
-            actualizar_vista(conservar_scroll=True)
-        except Exception as e:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"❌ Error: {str(e)}"),
-                bgcolor=ft.Colors.RED_600,
-                duration=3000
-            )
+            page.snack_bar = ft.SnackBar(content=ft.Text("🔄 Marcador reiniciado"),
+                                         bgcolor=ft.Colors.AMBER_600, duration=1500)
             page.snack_bar.open = True
             page.update()
+        except Exception as e:
+            page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Error: {str(e)}"),
+                                         bgcolor=ft.Colors.RED_600, duration=3000)
+            page.snack_bar.open = True
+            page.update()
+            raise
 
     def on_generar_desempate(grupo_id: int, equipo1: str, equipo2: str):
         """Callback para generar un partido de desempate."""

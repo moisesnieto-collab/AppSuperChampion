@@ -1,3 +1,4 @@
+import threading
 import flet as ft
 from typing import List, Callable, Optional
 from config.constants import (
@@ -60,7 +61,8 @@ def crear_lista_partidos(
     on_guardar_marcador: Callable[[int, int, int], None],
     on_reiniciar_marcador: Callable[[int], None],
     color_copa: Optional[str] = None,
-    on_actualizar_programacion: Optional[Callable[[int, str, str], None]] = None
+    on_actualizar_programacion: Optional[Callable[[int, str, str], None]] = None,
+    on_guardar_todos: Optional[Callable[[list], bool]] = None
 ) -> ft.Container:
     """
     Renderiza la lista de partidos del grupo con marcadores.
@@ -71,7 +73,52 @@ def crear_lista_partidos(
     bg_secundaria = oscurecer_color(color_copa, 0.30) if color_copa else COLOR_TARJETA_SEGUNDARIA
     
     filas_partidos = []
-    
+    registro_tarjetas = []
+
+    def _refrescar(*controles):
+        for c in controles:
+            try:
+                c.update()
+            except Exception:
+                pass
+
+    def guardar_todos(e):
+        """Guarda todos los marcadores del grupo en una sola operación."""
+        if not on_guardar_todos or not registro_tarjetas:
+            return
+        lote = []
+        for pid, tl, tv, *_ in registro_tarjetas:
+            try:
+                lote.append((pid, int(tl.value or 0), int(tv.value or 0)))
+            except ValueError:
+                return
+        btn_todos.disabled = True
+        btn_todos.content = "⏳ Guardando todos…"
+        for _, _, _, bg, br, _, _ in registro_tarjetas:
+            bg.disabled = br.disabled = True
+            _refrescar(bg, br)
+        _refrescar(btn_todos)
+
+        def trabajo():
+            try:
+                if on_guardar_todos(lote):
+                    for _, _, _, _, _, ic, tx in registro_tarjetas:
+                        ic.name = ft.Icons.CHECK_CIRCLE
+                        ic.color = COLOR_VERDE
+                        tx.value, tx.color = "Jugado", COLOR_VERDE
+                        _refrescar(ic, tx)
+            finally:
+                btn_todos.disabled = False
+                btn_todos.content = "💾 Guardar todos"
+                for _, _, _, bg, br, _, _ in registro_tarjetas:
+                    bg.disabled = br.disabled = False
+                    _refrescar(bg, br)
+                _refrescar(btn_todos)
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    btn_todos = ft.FilledButton("💾 Guardar todos", bgcolor=COLOR_VERDE, color=COLOR_TEXTO,
+                                on_click=guardar_todos)
+
     def _orden(p):
         return ((p.cancha or "").strip() == "", (p.cancha or "").strip().lower(),
                 (p.hora or "").strip() == "", (p.hora or "").strip())
@@ -119,16 +166,70 @@ def crear_lista_partidos(
                 counter=ft.Text("")
             )
             
-            def guardar_marcador(e, p_id=partido.id, tf_loc=tf_goles_local, tf_vis=tf_goles_visita):
+            txt_estado = ft.Text(estado_texto, size=11, color=estado_color, weight=ft.FontWeight.BOLD)
+            btn_guardar = ft.FilledButton("💾 Guardar", bgcolor=COLOR_VERDE, color=COLOR_TEXTO, expand=True)
+            btn_reiniciar = ft.IconButton(icon=ft.Icons.REFRESH, icon_color=COLOR_ROJO, icon_size=20,
+                                          tooltip="Reiniciar marcador")
+            registro_tarjetas.append((partido.id, tf_goles_local, tf_goles_visita, btn_guardar, btn_reiniciar,
+                                      estado_icon, txt_estado))
+
+            def _ocupado(btns, activo, etiqueta=None):
+                bg, br = btns
+                bg.disabled = activo
+                br.disabled = activo
+                if etiqueta is not None:
+                    bg.content = etiqueta
+                _refrescar(bg, br)
+
+            def _marcar(icono, txt, jugado):
+                icono.name = ft.Icons.CHECK_CIRCLE if jugado else ft.Icons.SCHEDULE
+                icono.color = COLOR_VERDE if jugado else COLOR_AMBAR
+                txt.value = "Jugado" if jugado else "Pendiente"
+                txt.color = COLOR_VERDE if jugado else COLOR_AMBAR
+                _refrescar(icono, txt)
+
+            def guardar_marcador(e, p_id=partido.id, tf_loc=tf_goles_local, tf_vis=tf_goles_visita,
+                                 bg=btn_guardar, br=btn_reiniciar, ic=estado_icon, tx=txt_estado):
+                if bg.disabled:
+                    return
                 try:
                     g_loc = int(tf_loc.value) if tf_loc.value else 0
                     g_vis = int(tf_vis.value) if tf_vis.value else 0
-                    on_guardar_marcador(p_id, g_loc, g_vis)
                 except ValueError:
-                    pass
-            
-            def reiniciar_marcador(e, p_id=partido.id):
-                on_reiniciar_marcador(p_id)
+                    return
+
+                def trabajo():
+                    try:
+                        on_guardar_marcador(p_id, g_loc, g_vis)
+                        _marcar(ic, tx, True)
+                    except Exception:
+                        pass
+                    finally:
+                        _ocupado((bg, br), False, "💾 Guardar")
+                _ocupado((bg, br), True, "⏳ Guardando…")
+                threading.Thread(target=trabajo, daemon=True).start()
+
+            def reiniciar_marcador(e, p_id=partido.id, tf_loc=tf_goles_local, tf_vis=tf_goles_visita,
+                                   bg=btn_guardar, br=btn_reiniciar, ic=estado_icon, tx=txt_estado):
+                if br.disabled:
+                    return
+
+                def trabajo():
+                    try:
+                        on_reiniciar_marcador(p_id)
+                        tf_loc.value = "0"
+                        tf_vis.value = "0"
+                        _refrescar(tf_loc, tf_vis)
+                        _marcar(ic, tx, False)
+                    except Exception:
+                        pass
+                    finally:
+                        _ocupado((bg, br), False, "💾 Guardar")
+                _ocupado((bg, br), True, "⏳ Reiniciando…")
+                threading.Thread(target=trabajo, daemon=True).start()
+
+            btn_guardar.on_click = guardar_marcador
+            btn_reiniciar.on_click = reiniciar_marcador
 
             tf_cancha = ft.TextField(
                 value=partido.cancha, label="Cancha", width=170, height=52, text_size=15,
@@ -164,10 +265,7 @@ def crear_lista_partidos(
                     # Estado del partido (arriba)
                     ft.Row([
                         ft.Column([
-                            ft.Row([
-                                estado_icon,
-                                ft.Text(estado_texto, size=11, color=estado_color, weight=ft.FontWeight.BOLD),
-                            ], spacing=6),
+                            ft.Row([estado_icon, txt_estado], spacing=6),
                             tf_cancha,
                             ft.Row([tf_hora, ft.TextButton("Programar", icon=ft.Icons.SCHEDULE,
                                                            tooltip="Guarda hora y cancha sin iniciar el partido",
@@ -216,22 +314,7 @@ def crear_lista_partidos(
                     ),
                     # Botones de acción (abajo)
                     ft.Container(
-                        content=ft.Row([
-                            ft.FilledButton(
-                                "💾 Guardar",
-                                bgcolor=COLOR_VERDE,
-                                color=COLOR_TEXTO,
-                                expand=True,
-                                on_click=guardar_marcador
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.REFRESH,
-                                icon_color=COLOR_ROJO,
-                                icon_size=20,
-                                tooltip="Reiniciar marcador",
-                                on_click=reiniciar_marcador
-                            )
-                        ], spacing=8),
+                        content=ft.Row([btn_guardar, btn_reiniciar], spacing=8),
                         padding=4,
                     ),
                 ], spacing=6),
@@ -289,6 +372,8 @@ def crear_lista_partidos(
                 )
             ], spacing=8),
             ft.Divider(color=COLOR_BORDE, height=1),
+            *([ft.Row([btn_todos], alignment=ft.MainAxisAlignment.END)]
+              if on_guardar_todos and registro_tarjetas else []),
             ft.Column(filas_partidos, spacing=8),
         ], spacing=8),
         padding=12,
