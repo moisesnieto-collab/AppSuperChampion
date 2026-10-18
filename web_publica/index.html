@@ -22,13 +22,13 @@
   .jor button{background:none;border:0;color:var(--t);font-size:22px;cursor:pointer}
   .jor button:disabled{opacity:.3}
   .partido{display:flex;gap:10px;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:10px;margin-bottom:8px}
-  .izq{width:56px;font-size:12px;color:var(--t2)}
+  .izq{width:72px;font-size:12px;color:var(--t2)}
   .izq b{display:block;color:var(--t);font-size:13px}
   .vivo{color:var(--live);font-weight:800}
   .eq{display:flex;justify-content:space-between;font-size:14px;padding:2px 0}
   .eq span:last-child{font-weight:800}
   .centro{flex:1}
-  .cancha{font-size:12px;color:var(--t2);font-weight:700;margin-top:4px}
+  .cancha{font-size:10px;color:var(--t2);font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .vacio{color:var(--m);text-align:center;padding:24px}
   .tabs{position:sticky;bottom:0;display:flex;gap:6px;background:var(--bg);padding:8px 0;margin-top:8px}
   .tab{flex:1;padding:10px;border-radius:12px;border:1px solid var(--b);background:var(--s);color:var(--m);font-weight:700;cursor:pointer}
@@ -85,11 +85,10 @@ function partido(p) {
   const estado = p.vivo ? `<span class="vivo">● VIVO</span>` : p.jugado ? "Final" : "Por jugar";
   const marc = v => (p.jugado || p.vivo) ? v : "-";
   return `<div class="partido">
-    <div class="izq"><b>${esc(p.hora || "--:--")}</b>${estado}${p.grupo ? `<span class="gb">${esc(abrevGrupo(p.grupo))}</span>` : ""}</div>
+    <div class="izq"><b>${esc(p.hora || "--:--")}</b>${estado}${p.cancha ? `<div class="cancha">📍 ${esc(p.cancha)}</div>` : ""}</div>
     <div class="centro">
       <div class="eq"><span>${esc(p.local)}</span><span>${marc(p.gl)}</span></div>
       <div class="eq"><span>${esc(p.visita)}</span><span>${marc(p.gv)}</span></div>
-      ${p.cancha ? `<div class="cancha">📍 ${esc(p.cancha)}</div>` : ""}
     </div></div>`;
 }
 function abrevGrupo(n) { const m = /(\d+)\s*$/.exec(n); return m ? "G" + m[1] : n.slice(0, 3).toUpperCase(); }
@@ -130,8 +129,10 @@ function estadoVista(cat, copa, jor) {
   const ps = cat.partidos;
   const vivo = ps.filter(p => p.vivo).length, fin = ps.filter(p => p.jugado && !p.vivo).length;
   const c = cat.campeon || {};
-  const camp = c.campeon ? `<div class="card oro"><div class="copa">🏆</div><small>CAMPEÓN</small><b>${esc(c.campeon)}</b><span>${esc(c.motivo)}</span></div>`
-    : (c.motivo ? `<div class="card">${esc(c.motivo)}</div>` : "");
+  const todosFin = ps.length > 0 && vivo === 0 && fin === ps.length;
+  const camp = (c.campeon && todosFin) ? `<div class="card oro"><div class="copa">🏆</div><small>CAMPEÓN</small><b>${esc(c.campeon)}</b><span>${esc(c.motivo)}</span></div>`
+    : (c.campeon ? `<div class="card">Campeón pendiente: aún hay partidos por jugar o en vivo</div>`
+    : (c.motivo ? `<div class="card">${esc(c.motivo)}</div>` : ""));
   return `<div class="cifras"><div class="cifra"><b>${fin}</b><small>Finalizados</small></div>` +
     `<div class="cifra"><b style="color:var(--live)">${vivo}</b><small>En vivo</small></div>` +
     `<div class="cifra"><b>${ps.length - fin - vivo}</b><small>Por jugar</small></div></div>` + camp +

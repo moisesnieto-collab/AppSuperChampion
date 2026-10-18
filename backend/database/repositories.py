@@ -414,7 +414,7 @@ class PartidoRepository:
     def actualizar_programacion(partido_id: int, hora: str = "", cancha: str = ""):
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("UPDATE partidos SET hora = ?, cancha = ? WHERE id = ?", (hora or "", cancha or "", partido_id))
+        cursor.execute("UPDATE partidos SET hora = ?, cancha = ? WHERE id = ?", (hora or "", (cancha or "")[:9], partido_id))
         con.commit()
 
     @staticmethod

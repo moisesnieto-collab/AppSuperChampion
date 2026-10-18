@@ -407,7 +407,7 @@ class TorneoService:
         # Liguilla de líderes: la mini tabla de los partidos de definición decide
         if modo == "liguilla_lideres" and len(partidos_definicion) > 1:
             from dataclasses import replace
-            pendientes = [p for p in partidos_definicion if not p.jugado]
+            pendientes = [p for p in partidos_definicion if not p.jugado or p.en_vivo]
             if pendientes:
                 return {"estado": "DESEMPATE_PENDIENTE", "equipo1": pendientes[0].equipo_local,
                         "equipo2": pendientes[0].equipo_visita, "partido_id": pendientes[0].id,
@@ -424,7 +424,7 @@ class TorneoService:
         # Si hay un partido de definición
         if partidos_definicion:
             partido_def = partidos_definicion[0]
-            if partido_def.jugado:
+            if partido_def.jugado and not partido_def.en_vivo:
                 if partido_def.goles_local > partido_def.goles_visita:
                     ganador = partido_def.equipo_local
                     return {"estado": "CAMPEON_DEFINIDO", "campeon": ganador, "motivo": f"Ganador del Partido de Definición ({partido_def.goles_local} - {partido_def.goles_visita})"}
@@ -453,7 +453,7 @@ class TorneoService:
         for grupo_data in resultado_grupos:
             partidos = grupo_data["partidos"]
             partidos_totales_todos += len(partidos)
-            partidos_completados_todos += sum(1 for p in partidos if p.jugado)
+            partidos_completados_todos += sum(1 for p in partidos if p.jugado and not p.en_vivo)
 
         # Si no todos los partidos de todos los grupos están jugados, seguir en curso
         if partidos_totales_todos > 0 and partidos_completados_todos < partidos_totales_todos:

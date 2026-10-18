@@ -31,16 +31,16 @@ def _fila_consulta(p: Partido, bright: str) -> ft.Control:
         estado = ft.Text("Por jugar", size=11, color=MUTED_2, weight=ft.FontWeight.W_600)
     if p.es_definicion:
         estado = ft.Text("Definición", size=11, color="#F59E0B", weight=ft.FontWeight.W_700)
-    if p.en_vivo and not p.jugado:
-        estado = ft.Row([PuntoPulsante(LIVE),
-                         ft.Text("VIVO", size=11, color=LIVE, weight=ft.FontWeight.W_800)], spacing=4)
+    if p.en_vivo:
+        estado = ft.Text("● VIVO", size=11, color=LIVE, weight=ft.FontWeight.W_800)
     hora = ft.Text(p.hora or "", size=12, weight=ft.FontWeight.W_700, color=TEXT)
 
     def equipo(nombre, goles, gana):
         return ft.Row([
             ft.Text(nombre, size=13, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, color=TEXT,
                     weight=ft.FontWeight.W_800 if gana else ft.FontWeight.W_500),
-            ft.Text(str(goles) if p.jugado else "–", size=15, color=TEXT if p.jugado else MUTED_2,
+            ft.Text(str(goles) if (p.jugado or p.en_vivo) else "–", size=15,
+                    color=TEXT if (p.jugado or p.en_vivo) else MUTED_2,
                     weight=ft.FontWeight.W_800 if gana else ft.FontWeight.W_500, text_align=ft.TextAlign.RIGHT),
         ])
 
@@ -48,11 +48,13 @@ def _fila_consulta(p: Partido, bright: str) -> ft.Control:
     gv = p.jugado and p.goles_visita > p.goles_local
     prog = " · ".join(x for x in ((p.hora or "").strip(), (p.cancha or "").strip()) if x)
     cols = [equipo(p.equipo_local, p.goles_local, gl), equipo(p.equipo_visita, p.goles_visita, gv)]
+    izq = [hora, estado]
     if (p.cancha or "").strip():
-        cols.append(ft.Text(f"📍 {p.cancha.strip()}", size=12, color=TEXT_2, weight=ft.FontWeight.W_700))
+        izq.append(ft.Text(f"📍 {p.cancha.strip()}", size=10, color=TEXT_2, weight=ft.FontWeight.W_700,
+                           max_lines=1, overflow=ft.TextOverflow.ELLIPSIS))
     return ft.Container(
         content=ft.Row([
-            ft.Container(content=ft.Column([hora, estado], spacing=2), width=54),
+            ft.Container(content=ft.Column(izq, spacing=2), width=72),
             ft.Column(cols, spacing=4, expand=True),
         ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=ft.Padding.symmetric(horizontal=12, vertical=8),
@@ -247,8 +249,8 @@ def crear_lista_partidos(
             btn_reiniciar.on_click = reiniciar_marcador
 
             tf_cancha = ft.TextField(
-                value=partido.cancha, label="Cancha", width=170, height=52, text_size=15,
-                max_length=20, counter=ft.Text(""), dense=True, content_padding=8,
+                value=partido.cancha, label="Cancha", width=140, height=52, text_size=15,
+                max_length=9, counter=ft.Text(""), dense=True, content_padding=8,
             )
             tf_hora = ft.TextField(
                 value=partido.hora, label="Hora", width=130, height=52, text_size=15,
