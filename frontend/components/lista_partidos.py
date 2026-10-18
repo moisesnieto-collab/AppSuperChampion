@@ -1,4 +1,6 @@
 import threading
+from concurrent.futures import ThreadPoolExecutor
+import time
 import flet as ft
 from typing import List, Callable, Optional
 from config.constants import (
@@ -15,6 +17,10 @@ from config.constants import (
 
 
 from frontend.components.vista_rediseno import PuntoPulsante
+
+
+# Un único hilo de guardado: reutiliza la misma conexión Turso (conexión por hilo)
+_EJECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix='guardar')
 
 
 def _fila_consulta(p: Partido, bright: str) -> ft.Control:
@@ -114,7 +120,7 @@ def crear_lista_partidos(
                     bg.disabled = br.disabled = False
                     _refrescar(bg, br)
                 _refrescar(btn_todos)
-        threading.Thread(target=trabajo, daemon=True).start()
+        _EJECUTOR.submit(trabajo)
 
     btn_todos = ft.FilledButton("💾 Guardar todos", bgcolor=COLOR_VERDE, color=COLOR_TEXTO,
                                 on_click=guardar_todos)
@@ -199,15 +205,24 @@ def crear_lista_partidos(
                     return
 
                 def trabajo():
+                    t0 = time.time()
+                    ok = False
                     try:
                         on_guardar_marcador(p_id, g_loc, g_vis)
                         _marcar(ic, tx, True)
+                        ok = True
                     except Exception:
                         pass
                     finally:
+                        resto = 0.7 - (time.time() - t0)
+                        if resto > 0:
+                            time.sleep(resto)
+                        if ok:
+                            _ocupado((bg, br), True, "✅ Guardado")
+                            time.sleep(1.0)
                         _ocupado((bg, br), False, "💾 Guardar")
                 _ocupado((bg, br), True, "⏳ Guardando…")
-                threading.Thread(target=trabajo, daemon=True).start()
+                _EJECUTOR.submit(trabajo)
 
             def reiniciar_marcador(e, p_id=partido.id, tf_loc=tf_goles_local, tf_vis=tf_goles_visita,
                                    bg=btn_guardar, br=btn_reiniciar, ic=estado_icon, tx=txt_estado):
@@ -226,7 +241,7 @@ def crear_lista_partidos(
                     finally:
                         _ocupado((bg, br), False, "💾 Guardar")
                 _ocupado((bg, br), True, "⏳ Reiniciando…")
-                threading.Thread(target=trabajo, daemon=True).start()
+                _EJECUTOR.submit(trabajo)
 
             btn_guardar.on_click = guardar_marcador
             btn_reiniciar.on_click = reiniciar_marcador

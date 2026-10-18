@@ -1,6 +1,9 @@
 """Publica en R2 la jornada pública: completa (botón) o solo la categoría afectada (al grabar)."""
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+
+_EJECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix='publicar')
 
 _DEBOUNCE_S = 2.0
 _lock = threading.Lock()
@@ -81,7 +84,7 @@ def publicar_categoria(categoria_id: int):
         _pendientes.add(categoria_id)
         if _timer is not None:
             return
-        _timer = threading.Timer(_DEBOUNCE_S, _publicar_pendientes)
+        _timer = threading.Timer(_DEBOUNCE_S, lambda: _EJECUTOR.submit(_publicar_pendientes))
         _timer.daemon = True
         _timer.start()
 
