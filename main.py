@@ -795,6 +795,11 @@ def main(page: ft.Page):
         if grupo_filtro != "Todos":
             grupos = [g for g in grupos if g["grupo"].nombre == grupo_filtro]
 
+        if tab == "Marcadores":
+            import re as _re
+            grupos = sorted(grupos, key=lambda g: [int(t) if t.isdigit() else t.lower()
+                                                   for t in _re.split(r"(\d+)", g["grupo"].nombre)])
+
         nuevos_controles = []
 
         if tab == "Estado":

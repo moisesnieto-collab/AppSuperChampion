@@ -13,6 +13,15 @@ from backend.models.copa import Copa, MODO_CAMPEON_DEFECTO, CRITERIOS_DEFECTO
 from backend.models.campeonato_permiso import CampeonatoPermiso
 
 
+def _republicar_publica():
+    """Tras eliminar datos, refresca la página pública (no debe romper la eliminación)."""
+    try:
+        from backend.services.publicador import republicar_tras_eliminar
+        republicar_tras_eliminar()
+    except Exception as e:
+        print("Error agendando republicación:", e)
+
+
 class TorneoRepository:
     @staticmethod
     def obtener_todos() -> List[Torneo]:
@@ -124,6 +133,7 @@ class TorneoRepository:
         cursor = con.cursor()
         cursor.execute("DELETE FROM torneos WHERE id = ?", (torneo_id,))
         con.commit()
+        _republicar_publica()
 
 
 class JornadaRepository:
@@ -181,6 +191,7 @@ class JornadaRepository:
         cursor = con.cursor()
         cursor.execute("DELETE FROM jornadas WHERE id = ?", (jornada_id,))
         con.commit()
+        _republicar_publica()
 
     @staticmethod
     def buscar_por_fecha(torneo_id: int, fecha: str) -> Optional[Jornada]:
@@ -242,6 +253,7 @@ class CategoriaRepository:
         cursor.execute("DELETE FROM grupos WHERE categoria_id = ?", (categoria_id,))
         cursor.execute("DELETE FROM partidos WHERE categoria_id = ?", (categoria_id,))
         con.commit()
+        _republicar_publica()
 
 
 class GrupoRepository:
@@ -291,6 +303,7 @@ class GrupoRepository:
         cursor.execute("DELETE FROM grupos WHERE id = ?", (grupo_id,))
         cursor.execute("DELETE FROM partidos WHERE grupo_id = ?", (grupo_id,))
         con.commit()
+        _republicar_publica()
 
     @staticmethod
     def obtener_por_id(grupo_id: int) -> Optional[Grupo]:
@@ -439,6 +452,7 @@ class PartidoRepository:
         else:
             cursor.execute("DELETE FROM partidos WHERE grupo_id = ?", (grupo_id,))
         con.commit()
+        _republicar_publica()
 
     @staticmethod
     def eliminar_partidos_definicion(categoria_id: int, jornada_id: int):
@@ -449,6 +463,7 @@ class PartidoRepository:
             (categoria_id, jornada_id)
         )
         con.commit()
+        _republicar_publica()
 
 
 class ConfiguracionRepository:
@@ -578,6 +593,7 @@ class AnioRepository:
         cursor = con.cursor()
         cursor.execute("DELETE FROM anios WHERE id = ?", (anio_id,))
         con.commit()
+        _republicar_publica()
 
 
 class CampeonatoRepository:
@@ -652,6 +668,7 @@ class CampeonatoRepository:
         cursor = con.cursor()
         cursor.execute("DELETE FROM campeonatos WHERE id = ?", (campeonato_id,))
         con.commit()
+        _republicar_publica()
 
 
 def _a_copa(r) -> Copa:
@@ -748,6 +765,7 @@ class CopaRepository:
         cursor = con.cursor()
         cursor.execute("DELETE FROM copas WHERE id = ?", (copa_id,))
         con.commit()
+        _republicar_publica()
 
 
 class CampeonatoPermisoRepository:

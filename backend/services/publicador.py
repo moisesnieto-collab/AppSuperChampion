@@ -8,6 +8,7 @@ _EJECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix='publicar')
 _DEBOUNCE_S = 2.0
 _lock = threading.Lock()
 _timer = None
+_timer_elim = None
 _pendientes = set()
 _documento = None
 
@@ -97,3 +98,33 @@ def publicar_categoria_de_partido(partido_id: int):
             publicar_categoria(p.categoria_id)
     except Exception as e:
         print("Error agendando publicación:", e)
+
+
+def _republicar_completa():
+    global _documento
+    try:
+        with _lock:
+            _documento = None
+        publicar_jornada_completa()
+    except Exception as e:
+        print("Error republicando tras eliminar:", e)
+
+
+def republicar_tras_eliminar():
+    """Tras eliminar algo, regenera y sube la jornada pública completa (agrupa llamadas seguidas)."""
+    global _timer_elim
+    if not _habilitado():
+        return
+    with _lock:
+        if _timer_elim is not None:
+            return
+        _timer_elim = threading.Timer(_DEBOUNCE_S, lambda: _EJECUTOR.submit(_republicar_completa_y_liberar))
+        _timer_elim.daemon = True
+        _timer_elim.start()
+
+
+def _republicar_completa_y_liberar():
+    global _timer_elim
+    with _lock:
+        _timer_elim = None
+    _republicar_completa()

@@ -93,7 +93,7 @@ function partido(p) {
 }
 function abrevGrupo(n) { const m = /(\d+)\s*$/.exec(n); return m ? "G" + m[1] : n.slice(0, 3).toUpperCase(); }
 function filtroGrupos(ps) {
-  const gs = [...new Set(ps.map(p => p.grupo).filter(Boolean))];
+  const gs = [...new Set(ps.map(p => p.grupo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es", {numeric: true}));
   const hayVivo = ps.some(p => p.vivo);
   if (gs.length < 2 && !hayVivo) return "";
   const op = ["TODOS", ...(hayVivo ? ["EN VIVO"] : []), ...gs];
@@ -102,7 +102,7 @@ function filtroGrupos(ps) {
 }
 function listaPartidos(ps) {
   if (!ps.length) return `<div class="vacio">Sin partidos</div>`;
-  const gs = [...new Set(ps.map(p => p.grupo).filter(Boolean))];
+  const gs = [...new Set(ps.map(p => p.grupo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es", {numeric: true}));
   let s = grupoSel;
   if (s !== "TODOS" && s !== "EN VIVO" && !gs.includes(s)) s = "TODOS";
   if (s === "EN VIVO") { const v = ps.filter(p => p.vivo); return v.length ? [...v].sort(cmp).map(partido).join("") : `<div class="vacio">Sin partidos en vivo</div>`; }
@@ -138,7 +138,7 @@ function estadoVista(cat, copa, jor) {
     `<div class="cifra"><b>${ps.length - fin - vivo}</b><small>Por jugar</small></div></div>` + camp +
     `<div class="card"><h3>MOSTRANDO</h3>Copa: <b>${esc(copa.nombre)}</b><br>Categoría: <b>${esc(cat.nombre)}</b><br>${esc(fechaTxt(jor))}</div>`;
 }
-const orden = p => [!p.cancha, (p.cancha || "").toLowerCase(), !p.hora, p.hora || ""];
+const orden = p => [!p.hora, p.hora || "", !p.cancha, (p.cancha || "").toLowerCase()];
 function cmp(a, b) {
   const x = orden(a), y = orden(b);
   for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;

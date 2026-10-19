@@ -128,8 +128,8 @@ def crear_lista_partidos(
                                 on_click=guardar_todos)
 
     def _orden(p):
-        return ((p.cancha or "").strip() == "", (p.cancha or "").strip().lower(),
-                (p.hora or "").strip() == "", (p.hora or "").strip())
+        return ((p.hora or "").strip() == "", (p.hora or "").strip(),
+                (p.cancha or "").strip() == "", (p.cancha or "").strip().lower())
 
     for partido in sorted(partidos, key=_orden):
         es_definicion = partido.es_definicion

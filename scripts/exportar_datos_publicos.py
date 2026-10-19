@@ -48,7 +48,7 @@ def resolver_jornada_id(cur, jornada_id=None):
         return jornada_id
     from backend.database.repositories import ConfiguracionRepository
     marcada = ConfiguracionRepository.obtener_jornada_publica()
-    if marcada:
+    if marcada and _filas(cur, "SELECT 1 FROM jornadas WHERE id = ?", (marcada,)):
         return marcada
     for (tid,) in _filas(cur, "SELECT t.id FROM torneos t JOIN copas c ON c.id = t.copa_id "
                               "WHERE t.activo = 1 AND c.activo = 1 ORDER BY c.orden, c.id, t.orden, t.id"):
