@@ -26,8 +26,10 @@ def _exportar_categoria(cur, catid, jid, nombre) -> dict:
     partidos = [
         {"local": r[0], "visita": r[1], "gl": r[2], "gv": r[3], "jugado": bool(r[4]),
          "vivo": bool(r[5]), "hora": r[6] or "", "cancha": r[7] or "", "grupo": r[8] or ""}
-        for r in _filas(cur, "SELECT p.equipo_local, p.equipo_visita, p.goles_local, p.goles_visita, "
+        for r in _filas(cur, "SELECT el.nombre, ev.nombre, p.goles_local, p.goles_visita, "
                              "p.jugado, p.en_vivo, p.hora, p.cancha, g.nombre FROM partidos p "
+                             "JOIN equipos el ON el.id = p.equipo_local_id "
+                             "JOIN equipos ev ON ev.id = p.equipo_visita_id "
                              "LEFT JOIN grupos g ON g.id = p.grupo_id "
                              "WHERE p.categoria_id = ? ORDER BY p.orden, p.id", (catid,))]
     try:

@@ -128,17 +128,20 @@ def main(page: ft.Page):
             try:
                 copas_g = {c.id for c in CopaService.obtener_copas_por_campeonato(camp_ultimo.id)}
                 if guardado.get("copa_activa_id") in copas_g:
-                    estado["copa_activa_id"] = guardado["copa_activa_id"]
-                    ts = {t.id for t in TorneoRepository.obtener_por_copa(estado["copa_activa_id"])}
-                    if guardado.get("torneo_activo_id") in ts:
-                        estado["torneo_activo_id"] = guardado["torneo_activo_id"]
-                        js = {j.id for j in TorneoService.obtener_jornadas_por_torneo(estado["torneo_activo_id"])}
-                        if guardado.get("jornada_activa_id") in js:
-                            estado["jornada_activa_id"] = guardado["jornada_activa_id"]
-                            cs = {c.id for c in TorneoService.obtener_categorias_por_jornada(estado["jornada_activa_id"])}
-                            estado["categoria_activa_id"] = guardado["categoria_activa_id"] \
-                                if guardado.get("categoria_activa_id") in cs else (next(iter(cs), None))
-                            estado["grupo_filtro"] = guardado.get("grupo_filtro") or "Todos"
+                    # Verificar que la copa tenga torneos antes de restaurar
+                    torneos_copa = TorneoRepository.obtener_por_copa(guardado["copa_activa_id"])
+                    if torneos_copa:
+                        estado["copa_activa_id"] = guardado["copa_activa_id"]
+                        ts = {t.id for t in torneos_copa}
+                        if guardado.get("torneo_activo_id") in ts:
+                            estado["torneo_activo_id"] = guardado["torneo_activo_id"]
+                            js = {j.id for j in TorneoService.obtener_jornadas_por_torneo(estado["torneo_activo_id"])}
+                            if guardado.get("jornada_activa_id") in js:
+                                estado["jornada_activa_id"] = guardado["jornada_activa_id"]
+                                cs = {c.id for c in TorneoService.obtener_categorias_por_jornada(estado["jornada_activa_id"])}
+                                estado["categoria_activa_id"] = guardado["categoria_activa_id"] \
+                                    if guardado.get("categoria_activa_id") in cs else (next(iter(cs), None))
+                                estado["grupo_filtro"] = guardado.get("grupo_filtro") or "Todos"
                 if guardado.get("tab_contenido") in ("Marcadores", "Tabla", "Estado"):
                     estado["tab_contenido"] = guardado["tab_contenido"]
             except Exception:
@@ -695,6 +698,13 @@ def main(page: ft.Page):
         jornada_id = estado.get("jornada_activa_id")
         grupo_filtro = estado.get("grupo_filtro", "Todos")
         es_org = bool(estado.get("es_organizador", False) and estado.get("modo_admin", False))
+        
+        # Si no hay torneo seleccionado, limpiar jornada y categoría para evitar mostrar datos de otra copa
+        if not estado.get("torneo_activo_id"):
+            estado["jornada_activa_id"] = None
+            estado["categoria_activa_id"] = None
+            jornada_id = None
+            cat_id = None
 
         # Pantalla de inicio: solo Año y Campeonato
         if estado.get("pantalla", "inicio") == "inicio" and estado.get("campeonato_activo_id"):
@@ -736,7 +746,9 @@ def main(page: ft.Page):
 
         tab = estado.get("tab_contenido", "Marcadores")
         if not page.web:
-            guardar_seleccion_completa(estado)
+            # Solo guardar si hay una selección válida (torneo seleccionado)
+            if estado.get("torneo_activo_id"):
+                guardar_seleccion_completa(estado)
 
         def elegir_tab(nombre):
             estado["tab_contenido"] = nombre
@@ -767,24 +779,189 @@ def main(page: ft.Page):
         page.bgcolor = tema["solid"]
 
         def ultima_copa_con_datos():
+            # Solo cargar automáticamente si el usuario no seleccionó manualmente una copa
+            # (es decir, si copa_activa_id es None o no corresponde a una selección manual)
             for c in copas_c:
                 if TorneoRepository.obtener_por_copa(c.id):
+                    # No cargar si la copa actual está seleccionada pero no tiene torneos
+                    # (el usuario seleccionó manualmente una copa vacía)
+                    if estado.get("copa_activa_id") == c.id:
+                        return
                     cargar_jerarquia(estado, c.id)
                     actualizar_vista()
                     return
 
         if not cat_id:
-            contenido_principal.controls = [crear_estado_vacio(
-                "Aún no hay categorías en esta Copa",
-                "Prueba otra Copa o vuelve pronto.", ft.Icons.INBOX_OUTLINED,
-                "Ir a la última Copa con datos", ultima_copa_con_datos)]
-            page.update()
-            return
+            # Si no hay torneo seleccionado, mostrar opción para crear torneo si es Master
+            if not estado.get("torneo_activo_id") and estado.get("rol") == "master" and estado.get("modo_admin"):
+                def abrir_modal_nuevo_torneo():
+                    from backend.services.torneo_service import TorneoService
+                    from backend.database.repositories import TorneoRepository
+                    
+                    copa_activa_id = estado.get("copa_activa_id")
+                    if not copa_activa_id:
+                        page.snack_bar = ft.SnackBar(
+                            content=ft.Text("❌ Debe seleccionar una copa primero"),
+                            bgcolor=ft.Colors.RED_600
+                        )
+                        page.snack_bar.open = True
+                        page.update()
+                        return
+                    
+                    tf_nombre = ft.TextField(
+                        label="Nombre del Torneo (ej: Copa Colegio 2024)",
+                        autofocus=True,
+                    )
+                    tf_tipo = ft.TextField(
+                        label="Tipo (ej: Copa, Liga)",
+                        value="Copa",
+                    )
+                    tf_orden = ft.TextField(
+                        label="Orden de presentación (0 para el último)",
+                        value="0",
+                        input_filter=ft.NumbersOnlyInputFilter(),
+                    )
+                    texto_error = ft.Text("", color=ft.Colors.RED_600, size=12)
+                    
+                    def guardar_torneo(ev):
+                        nom = tf_nombre.value.strip()
+                        tipo = tf_tipo.value.strip()
+                        orden_str = tf_orden.value.strip()
+                        
+                        if not nom or not tipo:
+                            texto_error.value = "❌ Todos los campos son obligatorios"
+                            page.update()
+                            return
+                        
+                        try:
+                            orden = int(orden_str) if orden_str else 0
+                            nuevo_id = TorneoService.crear_torneo(nom, tipo, copa_activa_id, orden, es_master=True)
+                            estado["torneo_activo_id"] = nuevo_id
+                            estado["jornada_activa_id"] = None
+                            estado["categoria_activa_id"] = None
+                            dlg_nuevo_torneo.open = False
+                            on_cambio_seleccion()
+                            page.snack_bar = ft.SnackBar(
+                                content=ft.Text(f"✅ Torneo '{nom}' creado exitosamente."),
+                                bgcolor=ft.Colors.GREEN_600
+                            )
+                            page.snack_bar.open = True
+                            page.update()
+                        except Exception as err:
+                            texto_error.value = f"❌ {str(err)}"
+                            page.update()
+                    
+                    dlg_nuevo_torneo = ft.AlertDialog(
+                        title=ft.Row([
+                            ft.Icon(ft.Icons.ADD_CIRCLE, color=ft.Colors.GREEN_600, size=22),
+                            ft.Text("Nuevo Torneo", weight=ft.FontWeight.BOLD, size=16),
+                        ]),
+                        content=ft.Column([
+                            ft.Text("Crea un nuevo torneo."),
+                            tf_nombre,
+                            tf_tipo,
+                            tf_orden,
+                            texto_error,
+                        ], spacing=10, tight=True, width=340),
+                        actions=[
+                            ft.TextButton("Cancelar", on_click=lambda ev: setattr(dlg_nuevo_torneo, 'open', False)),
+                            ft.FilledButton("Crear Torneo", bgcolor=ft.Colors.GREEN_600, on_click=guardar_torneo),
+                        ],
+                    )
+                    if dlg_nuevo_torneo not in page.overlay:
+                        page.overlay.append(dlg_nuevo_torneo)
+                    dlg_nuevo_torneo.open = True
+                    page.update()
+                
+                contenido_principal.controls = [crear_estado_vacio(
+                    "Aún no hay torneos en esta Copa",
+                    "Crea el primer torneo para comenzar.", ft.Icons.EMOJI_EVENTS,
+                    "Crear Torneo", abrir_modal_nuevo_torneo)]
+                page.update()
+                return
+            else:
+                contenido_principal.controls = [crear_estado_vacio(
+                    "Aún no hay categorías en esta Copa",
+                    "Prueba otra Copa o vuelve pronto.", ft.Icons.INBOX_OUTLINED,
+                    "Ir a la última Copa con datos", ultima_copa_con_datos)]
+                page.update()
+                return
 
         if not jornada_id:
             contenido_principal.controls = [crear_estado_vacio(
                 "No hay jornadas disponibles", "Vuelve pronto o prueba otra Copa.",
                 ft.Icons.CALENDAR_TODAY, "Ir a la última Copa con datos", ultima_copa_con_datos)]
+            page.update()
+            return
+        
+        # Si hay jornada pero no hay categorías, mostrar opción para crear categoría si es Master
+        if jornada_id and not cat_id and estado.get("rol") == "master" and estado.get("modo_admin"):
+            def abrir_modal_nueva_categoria():
+                from backend.services.torneo_service import TorneoService
+                
+                jornada_activa_id = estado.get("jornada_activa_id")
+                if not jornada_activa_id:
+                    page.snack_bar = ft.SnackBar(
+                        content=ft.Text("❌ Debe seleccionar una jornada primero"),
+                        bgcolor=ft.Colors.RED_600
+                    )
+                    page.snack_bar.open = True
+                    page.update()
+                    return
+                
+                tf_nombre = ft.TextField(
+                    label="Nombre de la Categoría (ej: 7° Básico, Pre-Kinder)",
+                    autofocus=True,
+                )
+                texto_error = ft.Text("", color=ft.Colors.RED_600, size=12)
+                
+                def guardar_categoria(ev):
+                    nom = tf_nombre.value.strip()
+                    
+                    if not nom:
+                        texto_error.value = "❌ El nombre es obligatorio"
+                        page.update()
+                        return
+                    
+                    try:
+                        nuevo_id = TorneoService.crear_categoria(jornada_activa_id, nom, es_organizador=True)
+                        estado["categoria_activa_id"] = nuevo_id
+                        dlg_nueva_cat.open = False
+                        on_cambio_seleccion()
+                        page.snack_bar = ft.SnackBar(
+                            content=ft.Text(f"✅ Categoría '{nom}' creada exitosamente."),
+                            bgcolor=ft.Colors.GREEN_600
+                        )
+                        page.snack_bar.open = True
+                        page.update()
+                    except Exception as err:
+                        texto_error.value = f"❌ {str(err)}"
+                        page.update()
+                
+                dlg_nueva_cat = ft.AlertDialog(
+                    title=ft.Row([
+                        ft.Icon(ft.Icons.ADD_CIRCLE, color=ft.Colors.GREEN_600, size=22),
+                        ft.Text("Nueva Categoría", weight=ft.FontWeight.BOLD, size=16),
+                    ]),
+                    content=ft.Column([
+                        ft.Text("Crea una nueva categoría (los grupos se crean manualmente)."),
+                        tf_nombre,
+                        texto_error,
+                    ], spacing=10, tight=True, width=340),
+                    actions=[
+                        ft.TextButton("Cancelar", on_click=lambda ev: setattr(dlg_nueva_cat, 'open', False)),
+                        ft.FilledButton("Crear Categoría", bgcolor=ft.Colors.GREEN_600, on_click=guardar_categoria),
+                    ],
+                )
+                if dlg_nueva_cat not in page.overlay:
+                    page.overlay.append(dlg_nueva_cat)
+                dlg_nueva_cat.open = True
+                page.update()
+            
+            contenido_principal.controls = [crear_estado_vacio(
+                "Aún no hay categorías en esta Jornada",
+                "Crea la primera categoría para comenzar.", ft.Icons.SCHOOL,
+                "Crear Categoría", abrir_modal_nueva_categoria)]
             page.update()
             return
 

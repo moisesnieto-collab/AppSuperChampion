@@ -13,8 +13,65 @@ from backend.models.copa import Copa, MODO_CAMPEON_DEFECTO, CRITERIOS_DEFECTO
 from backend.models.campeonato_permiso import CampeonatoPermiso
 
 
+_SEL_PARTIDO = """
+    SELECT p.id, p.grupo_id, p.categoria_id, p.fecha_jornada_id, el.nombre, ev.nombre,
+           p.goles_local, p.goles_visita, p.jugado, p.es_definicion, p.orden,
+           COALESCE(p.en_vivo, 0), COALESCE(p.hora, ''), COALESCE(p.cancha, '')
+    FROM partidos p
+    JOIN equipos el ON el.id = p.equipo_local_id
+    JOIN equipos ev ON ev.id = p.equipo_visita_id
+"""
+
+
+def _limpiar_huerfanos():
+    """Mantiene la BD consistente: sin filas de grupo_equipos sin grupo ni equipos sin uso."""
+    try:
+        con = obtener_conexion()
+        cur = con.cursor()
+        cur.execute("DELETE FROM partidos WHERE grupo_id NOT IN (SELECT id FROM grupos)")
+        cur.execute("DELETE FROM grupo_equipos WHERE grupo_id NOT IN (SELECT id FROM grupos)")
+        cur.execute("DELETE FROM equipos WHERE copa_id NOT IN (SELECT id FROM copas)")
+        cur.execute("DELETE FROM equipos WHERE id NOT IN (SELECT equipo_id FROM grupo_equipos) "
+                    "AND id NOT IN (SELECT equipo_local_id FROM partidos) "
+                    "AND id NOT IN (SELECT equipo_visita_id FROM partidos)")
+        con.commit()
+    except Exception as e:
+        print("Error limpiando equipos huérfanos:", e)
+
+
+def _equipo_id(cursor, categoria_id: int, nombre: str, ctx: Optional[dict] = None) -> int:
+    """Devuelve el id del equipo (copa + categoría + nombre), creándolo si no existe.
+
+    `ctx` permite reutilizar la copa/categoría ya resuelta al procesar varios equipos seguidos."""
+    if ctx is not None and "copa_cat" in ctx:
+        copa_id, cat = ctx["copa_cat"]
+    else:
+        cursor.execute(
+            "SELECT t.copa_id, c.nombre FROM categorias c JOIN jornadas j ON j.id = c.jornada_id "
+            "JOIN torneos t ON t.id = j.torneo_id WHERE c.id = ?", (categoria_id,))
+        copa_id, cat = cursor.fetchone()
+        if ctx is not None:
+            ctx["copa_cat"] = (copa_id, cat)
+    limpio = " ".join(str(nombre).split())
+    cursor.execute("SELECT id FROM equipos WHERE copa_id = ? AND categoria_nombre = ? AND nombre = ?",
+                   (copa_id, cat, limpio))
+    fila = cursor.fetchone()
+    if fila:
+        return fila[0]
+    cursor.execute("INSERT INTO equipos (copa_id, categoria_nombre, nombre) VALUES (?, ?, ?)",
+                   (copa_id, cat, limpio))
+    return cursor.lastrowid
+
+
+def _nombres_equipos(cursor, grupo_id: int) -> List[str]:
+    cursor.execute("SELECT e.nombre FROM grupo_equipos ge JOIN equipos e ON e.id = ge.equipo_id "
+                   "WHERE ge.grupo_id = ? ORDER BY ge.orden ASC, ge.id ASC", (grupo_id,))
+    return [r[0] for r in cursor.fetchall()]
+
+
 def _republicar_publica():
     """Tras eliminar datos, refresca la página pública (no debe romper la eliminación)."""
+    _limpiar_huerfanos()
     try:
         from backend.services.publicador import republicar_tras_eliminar
         republicar_tras_eliminar()
@@ -252,6 +309,7 @@ class CategoriaRepository:
         cursor.execute("DELETE FROM categorias WHERE id = ?", (categoria_id,))
         cursor.execute("DELETE FROM grupos WHERE categoria_id = ?", (categoria_id,))
         cursor.execute("DELETE FROM partidos WHERE categoria_id = ?", (categoria_id,))
+        cursor.execute("DELETE FROM grupo_equipos WHERE grupo_id NOT IN (SELECT id FROM grupos)")
         con.commit()
         _republicar_publica()
 
@@ -262,39 +320,58 @@ class GrupoRepository:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "SELECT id, categoria_id, fecha_jornada_id, nombre, equipos FROM grupos WHERE categoria_id = ? AND fecha_jornada_id = ? ORDER BY id ASC",
+            "SELECT id, categoria_id, fecha_jornada_id, nombre FROM grupos WHERE categoria_id = ? AND fecha_jornada_id = ? ORDER BY id ASC",
             (categoria_id, jornada_id)
         )
         rows = cursor.fetchall()
-        grupos = []
-        for r in rows:
-            try:
-                equipos = json.loads(r[4])
-            except Exception:
-                equipos = []
-            grupos.append(Grupo(id=r[0], categoria_id=r[1], fecha_jornada_id=r[2], nombre=r[3], equipos=equipos))
-        return grupos
+        if not rows:
+            return []
+        # Una sola consulta para los equipos de todos los grupos (evita N+1 viajes a Turso)
+        cursor.execute("SELECT ge.grupo_id, e.nombre FROM grupo_equipos ge JOIN equipos e ON e.id = ge.equipo_id "
+                       "JOIN grupos g ON g.id = ge.grupo_id WHERE g.categoria_id = ? AND g.fecha_jornada_id = ? "
+                       "ORDER BY ge.orden ASC, ge.id ASC", (categoria_id, jornada_id))
+        por_grupo = {}
+        for gid, nombre in cursor.fetchall():
+            por_grupo.setdefault(gid, []).append(nombre)
+        return [Grupo(id=r[0], categoria_id=r[1], fecha_jornada_id=r[2], nombre=r[3],
+                      equipos=por_grupo.get(r[0], [])) for r in rows]
+
+    @staticmethod
+    def _asignar_equipos(cursor, grupo_id: int, categoria_id: int, equipos: List[str]):
+        cursor.execute("DELETE FROM grupo_equipos WHERE grupo_id = ?", (grupo_id,))
+        vistos = set()
+        ctx = {}
+        for i, n in enumerate(equipos):
+            eid = _equipo_id(cursor, categoria_id, n, ctx)
+            if eid in vistos:
+                continue
+            vistos.add(eid)
+            cursor.execute("INSERT INTO grupo_equipos (grupo_id, equipo_id, orden) VALUES (?, ?, ?)", (grupo_id, eid, i))
 
     @staticmethod
     def crear(categoria_id: int, jornada_id: int, nombre: str, equipos: List[str]) -> int:
         con = obtener_conexion()
         cursor = con.cursor()
         cursor.execute(
-            "INSERT INTO grupos (categoria_id, fecha_jornada_id, nombre, equipos) VALUES (?, ?, ?, ?)",
-            (categoria_id, jornada_id, nombre, json.dumps(equipos))
+            "INSERT INTO grupos (categoria_id, fecha_jornada_id, nombre) VALUES (?, ?, ?)",
+            (categoria_id, jornada_id, nombre)
         )
+        gid = cursor.lastrowid
+        GrupoRepository._asignar_equipos(cursor, gid, categoria_id, equipos)
         con.commit()
-        return cursor.lastrowid
+        return gid
 
     @staticmethod
     def actualizar_equipos(grupo_id: int, equipos: List[str]):
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute(
-            "UPDATE grupos SET equipos = ? WHERE id = ?",
-            (json.dumps(equipos), grupo_id)
-        )
+        cursor.execute("SELECT categoria_id FROM grupos WHERE id = ?", (grupo_id,))
+        fila = cursor.fetchone()
+        if not fila:
+            return
+        GrupoRepository._asignar_equipos(cursor, grupo_id, fila[0], equipos)
         con.commit()
+        _limpiar_huerfanos()
 
     @staticmethod
     def eliminar(grupo_id: int):
@@ -302,6 +379,7 @@ class GrupoRepository:
         cursor = con.cursor()
         cursor.execute("DELETE FROM grupos WHERE id = ?", (grupo_id,))
         cursor.execute("DELETE FROM partidos WHERE grupo_id = ?", (grupo_id,))
+        cursor.execute("DELETE FROM grupo_equipos WHERE grupo_id = ?", (grupo_id,))
         con.commit()
         _republicar_publica()
 
@@ -309,17 +387,11 @@ class GrupoRepository:
     def obtener_por_id(grupo_id: int) -> Optional[Grupo]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute(
-            "SELECT id, categoria_id, fecha_jornada_id, nombre, equipos FROM grupos WHERE id = ?",
-            (grupo_id,)
-        )
+        cursor.execute("SELECT id, categoria_id, fecha_jornada_id, nombre FROM grupos WHERE id = ?", (grupo_id,))
         row = cursor.fetchone()
         if row:
-            try:
-                equipos = json.loads(row[4])
-            except Exception:
-                equipos = []
-            return Grupo(id=row[0], categoria_id=row[1], fecha_jornada_id=row[2], nombre=row[3], equipos=equipos)
+            return Grupo(id=row[0], categoria_id=row[1], fecha_jornada_id=row[2], nombre=row[3],
+                         equipos=_nombres_equipos(cursor, row[0]))
         return None
 
 
@@ -328,13 +400,9 @@ class PartidoRepository:
     def obtener_por_grupo(grupo_id: int) -> List[Partido]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("""
-            SELECT id, grupo_id, categoria_id, fecha_jornada_id, equipo_local, equipo_visita,
-                   goles_local, goles_visita, jugado, es_definicion, orden,
-                   COALESCE(en_vivo, 0), COALESCE(hora, ''), COALESCE(cancha, '')
-            FROM partidos
-            WHERE grupo_id = ?
-            ORDER BY orden ASC, id ASC
+        cursor.execute(_SEL_PARTIDO + """
+            WHERE p.grupo_id = ?
+            ORDER BY p.orden ASC, p.id ASC
         """, (grupo_id,))
         rows = cursor.fetchall()
         return [
@@ -350,13 +418,9 @@ class PartidoRepository:
     def obtener_por_categoria_y_jornada(categoria_id: int, jornada_id: int) -> List[Partido]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("""
-            SELECT id, grupo_id, categoria_id, fecha_jornada_id, equipo_local, equipo_visita,
-                   goles_local, goles_visita, jugado, es_definicion, orden,
-                   COALESCE(en_vivo, 0), COALESCE(hora, ''), COALESCE(cancha, '')
-            FROM partidos
-            WHERE categoria_id = ? AND fecha_jornada_id = ?
-            ORDER BY grupo_id ASC, orden ASC, id ASC
+        cursor.execute(_SEL_PARTIDO + """
+            WHERE p.categoria_id = ? AND p.fecha_jornada_id = ?
+            ORDER BY p.grupo_id ASC, p.orden ASC, p.id ASC
         """, (categoria_id, jornada_id))
         rows = cursor.fetchall()
         return [
@@ -372,12 +436,8 @@ class PartidoRepository:
     def obtener_por_id(partido_id: int) -> Optional[Partido]:
         con = obtener_conexion()
         cursor = con.cursor()
-        cursor.execute("""
-            SELECT id, grupo_id, categoria_id, fecha_jornada_id, equipo_local, equipo_visita,
-                   goles_local, goles_visita, jugado, es_definicion, orden,
-                   COALESCE(en_vivo, 0), COALESCE(hora, ''), COALESCE(cancha, '')
-            FROM partidos
-            WHERE id = ?
+        cursor.execute(_SEL_PARTIDO + """
+            WHERE p.id = ?
         """, (partido_id,))
         r = cursor.fetchone()
         if r:
@@ -394,11 +454,14 @@ class PartidoRepository:
               es_definicion: bool = False, orden: int = 0) -> int:
         con = obtener_conexion()
         cursor = con.cursor()
+        ctx = {}
+        id_local = _equipo_id(cursor, categoria_id, equipo_local, ctx)
+        id_visita = _equipo_id(cursor, categoria_id, equipo_visita, ctx)
         cursor.execute("""
             INSERT INTO partidos
-            (grupo_id, categoria_id, fecha_jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, jugado, es_definicion, orden)
+            (grupo_id, categoria_id, fecha_jornada_id, equipo_local_id, equipo_visita_id, goles_local, goles_visita, jugado, es_definicion, orden)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (grupo_id, categoria_id, jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, 1 if jugado else 0, 1 if es_definicion else 0, orden))
+        """, (grupo_id, categoria_id, jornada_id, id_local, id_visita, goles_local, goles_visita, 1 if jugado else 0, 1 if es_definicion else 0, orden))
         con.commit()
         return cursor.lastrowid
 

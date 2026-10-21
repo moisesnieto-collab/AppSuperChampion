@@ -121,6 +121,9 @@ def crear_selector_categoria_y_dia(
         estado["torneo_activo_id"] = None
         estado["jornada_activa_id"] = None
         estado["categoria_activa_id"] = None
+        # Limpiar selección guardada para evitar restauración automática de otra copa
+        from config.preferencias import guardar_seleccion_completa
+        guardar_seleccion_completa({})
         # Cargar torneos de la copa seleccionada
         from backend.database.repositories import TorneoRepository
         torneos_nuevos = TorneoRepository.obtener_por_copa(copa_id)
@@ -812,6 +815,12 @@ def crear_selector_categoria_y_dia(
                 lambda: abrir_dialogo_editar_torneo(torneo_obj)))
             acc_torneo.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar torneo",
                                             lambda: abrir_dialogo_eliminar_torneo(None)))
+    
+    # Agregar mensaje si no hay torneos
+    if not chips_torneos and copa_activa_id:
+        chips_torneos.append(
+            ft.Text("Sin torneos", size=12, color=COLOR_SUBTEXTO, italic=True)
+        )
 
     # Botones de Categorías (ahora filtradas por jornada)
     def seleccionar_cat(cat_id: int):
@@ -896,6 +905,17 @@ def crear_selector_categoria_y_dia(
                 ink=True,
             )
         )
+    
+    # Agregar mensaje si no hay categorías
+    if not chips_categorias and copa_activa_id:
+        if not jornada_activa_id:
+            chips_categorias.append(
+                ft.Text("Seleccione una jornada primero", size=12, color=COLOR_SUBTEXTO, italic=True)
+            )
+        else:
+            chips_categorias.append(
+                ft.Text("Sin categorías", size=12, color=COLOR_SUBTEXTO, italic=True)
+            )
 
     acc_cat = []
     if es_organizador and jornada_activa_id:
@@ -949,6 +969,17 @@ def crear_selector_categoria_y_dia(
                 ink=True,
             )
         )
+    
+    # Agregar mensaje si no hay jornadas
+    if not chips_jornadas and copa_activa_id:
+        if not torneo_activo_id:
+            chips_jornadas.append(
+                ft.Text("Seleccione un torneo primero", size=12, color=COLOR_SUBTEXTO, italic=True)
+            )
+        else:
+            chips_jornadas.append(
+                ft.Text("Sin jornadas", size=12, color=COLOR_SUBTEXTO, italic=True)
+            )
 
     acc_jornada = []
     if es_organizador:
@@ -1104,7 +1135,11 @@ def crear_selector_categoria_y_dia(
 
     copa_obj = next((c for c in copas if c.id == copa_activa_id), None)
     color_copa = copa_obj.color if copa_obj and copa_obj.color else None
-    page.bgcolor = color_copa or COLOR_FONDO
+    # Si no hay copa seleccionada o no tiene color, usar COLOR_FONDO
+    if not copa_obj or not color_copa:
+        page.bgcolor = COLOR_FONDO
+    else:
+        page.bgcolor = color_copa
 
     if color_copa:
         def _texto_claro(ctrl):

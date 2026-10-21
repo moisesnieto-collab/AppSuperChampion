@@ -48,6 +48,9 @@ def cargar_jerarquia(estado: dict, copa_id: Optional[int] = None):
     estado["jornada_activa_id"] = None
     estado["categoria_activa_id"] = None
     estado["grupo_filtro"] = "Todos"
+    # Limpiar selección guardada para evitar restauración automática de otra copa
+    from config.preferencias import guardar_seleccion_completa
+    guardar_seleccion_completa({})
     if not copa_id:
         return
     torneos = TorneoRepository.obtener_por_copa(copa_id)
