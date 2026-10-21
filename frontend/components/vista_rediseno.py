@@ -7,6 +7,7 @@ from config.constants import (
     BG, SURFACE, SURFACE_2, BORDER, BORDER_2, TEXT, TEXT_2, MUTED, MUTED_2, GOLD, NAV_BG, LIVE, OK,
     COPA_THEMES, RADIO_SEGMENTO, RADIO_CATEGORIA, RADIO_TARJETA, RADIO_COPA, RADIO_SHEET,
 )
+from config.constants import mezclar_color
 from backend.services.torneo_service import TorneoService
 from backend.services.anio_service import AnioService
 from backend.services.campeonato_service import CampeonatoService
@@ -25,6 +26,14 @@ _ICONOS_TAB = {
 def tema_copa(copas: list, copa_id: Optional[int]) -> dict:
     """Devuelve {'solid','bright'} según la posición de la Copa (máx. 4 temas)."""
     idx = next((i for i, c in enumerate(copas) if c.id == copa_id), 0)
+    if not copas:
+        return COPA_THEMES[0]
+    color = getattr(copas[idx], "color", None)
+    if color:
+        try:
+            return {"solid": color, "bright": mezclar_color(color, 0.35)}
+        except Exception:
+            pass
     return COPA_THEMES[idx % len(COPA_THEMES)]
 
 
@@ -226,7 +235,7 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
 
     chips_copa = []
     for i, c in enumerate(copas):
-        t = COPA_THEMES[i % len(COPA_THEMES)]
+        t = tema_copa(copas, c.id)
         activa = c.id == estado.get("copa_activa_id")
         con_datos = bool(TorneoRepository.obtener_por_copa(c.id))
         

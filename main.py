@@ -26,7 +26,7 @@ from frontend.components.lista_partidos import crear_lista_partidos
 from frontend.components.tarjeta_campeon import crear_tarjeta_campeon
 
 
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.8.0"
 _commit = (os.environ.get("RENDER_GIT_COMMIT") or "")[:7]
 VERSION_TXT = f"v{APP_VERSION}" + (f" ({_commit})" if _commit else "")
 print(f"[SuperChampion] Iniciando {VERSION_TXT}")
@@ -791,7 +791,9 @@ def main(page: ft.Page):
                     actualizar_vista()
                     return
 
-        if not cat_id:
+        puede_admin = bool(estado.get("es_organizador") and estado.get("modo_admin")
+                           and estado.get("rol") != "marcador")
+        if not cat_id and not (jornada_id and puede_admin):
             # Si no hay torneo seleccionado, mostrar opción para crear torneo si es Master
             if not estado.get("torneo_activo_id") and estado.get("rol") == "master" and estado.get("modo_admin"):
                 def abrir_modal_nuevo_torneo():
@@ -879,13 +881,21 @@ def main(page: ft.Page):
                     "Crear Torneo", abrir_modal_nuevo_torneo)]
                 page.update()
                 return
-            else:
+            elif not (estado.get("torneo_activo_id") and puede_admin):
                 contenido_principal.controls = [crear_estado_vacio(
                     "Aún no hay categorías en esta Copa",
                     "Prueba otra Copa o vuelve pronto.", ft.Icons.INBOX_OUTLINED,
                     "Ir a la última Copa con datos", ultima_copa_con_datos)]
                 page.update()
                 return
+
+        if not jornada_id and puede_admin and torneo_id:
+            contenido_principal.controls = [crear_estado_vacio(
+                "Aún no hay jornadas en este Torneo",
+                "Crea la primera jornada para comenzar.", ft.Icons.CALENDAR_TODAY,
+                "Crear Jornada", lambda: abrir_dialogo_crear_jornada(None))]
+            page.update()
+            return
 
         if not jornada_id:
             contenido_principal.controls = [crear_estado_vacio(
@@ -895,7 +905,7 @@ def main(page: ft.Page):
             return
         
         # Si hay jornada pero no hay categorías, mostrar opción para crear categoría si es Master
-        if jornada_id and not cat_id and estado.get("rol") == "master" and estado.get("modo_admin"):
+        if jornada_id and not cat_id and puede_admin:
             def abrir_modal_nueva_categoria():
                 from backend.services.torneo_service import TorneoService
                 
