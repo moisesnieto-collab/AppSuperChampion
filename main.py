@@ -26,7 +26,7 @@ from frontend.components.lista_partidos import crear_lista_partidos
 from frontend.components.tarjeta_campeon import crear_tarjeta_campeon
 
 
-APP_VERSION = "1.8.0"
+APP_VERSION = "1.9.0"
 _commit = (os.environ.get("RENDER_GIT_COMMIT") or "")[:7]
 VERSION_TXT = f"v{APP_VERSION}" + (f" ({_commit})" if _commit else "")
 print(f"[SuperChampion] Iniciando {VERSION_TXT}")
@@ -1010,7 +1010,7 @@ def main(page: ft.Page):
             grupo = g_data["grupo"]
             if tab == "Tabla":
                 nuevos_controles.append(crear_tabla_posiciones(
-                    grupo.nombre, g_data["tabla"], color_copa=color_copa, compacto=True, acento=bright))
+                    grupo.nombre, g_data["tabla"], color_copa=color_copa, compacto=False, acento=bright))
             if tab == "Marcadores":
                 nuevos_controles.append(
                     crear_lista_partidos(

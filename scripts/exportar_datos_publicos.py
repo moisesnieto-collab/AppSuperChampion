@@ -64,24 +64,44 @@ def resolver_jornada_id(cur, jornada_id=None):
     return None
 
 
+def _jornadas_a_publicar(cur, jornada_id=None) -> list:
+    """Jornada indicada, o la jornada pública de cada Copa (las Copas sin marcar se omiten).
+    Si no hay ninguna marcada, usa la alternativa de resolver_jornada_id."""
+    if jornada_id:
+        return [jornada_id]
+    from backend.database.repositories import ConfiguracionRepository
+    ids = [j for j in ConfiguracionRepository.obtener_jornadas_publicas().values()
+           if _filas(cur, "SELECT 1 FROM jornadas WHERE id = ?", (j,))]
+    if ids:
+        return ids
+    jid = resolver_jornada_id(cur)
+    return [jid] if jid else []
+
+
 def generar(jornada_id=None) -> dict:
-    """Exporta solo una jornada (con TODAS sus categorías) dentro de su copa/torneo."""
+    """Exporta la jornada pública de cada Copa (con TODAS sus categorías), o solo la indicada."""
     con = obtener_conexion()
     cur = con.cursor()
     ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    jid = resolver_jornada_id(cur, jornada_id)
-    filas = _filas(cur, "SELECT j.id, j.nombre, j.fecha, t.id, t.nombre, c.id, c.nombre FROM jornadas j "
-                        "JOIN torneos t ON t.id = j.torneo_id JOIN copas c ON c.id = t.copa_id "
-                        "WHERE j.id = ?", (jid,)) if jid else []
-    if not filas:
-        return {"actualizado": ahora, "jornada_id": None, "copas": []}
-    jid, jnombre, jfecha, _tid, tnombre, _cid, cnombre = filas[0]
-    cats = [_exportar_categoria(cur, catid, jid, cnom)
-            for catid, cnom in _filas(cur, "SELECT id, nombre FROM categorias WHERE jornada_id = ? "
-                                           "ORDER BY orden, id", (jid,))]
-    jornada = {"id": jid, "nombre": jnombre, "fecha": str(jfecha or ""), "categorias": cats}
-    return {"actualizado": ahora, "jornada_id": jid,
-            "copas": [{"nombre": cnombre, "torneos": [{"nombre": tnombre, "jornadas": [jornada]}]}]}
+    copas = {}
+    for jid in _jornadas_a_publicar(cur, jornada_id):
+        filas = _filas(cur, "SELECT j.id, j.nombre, j.fecha, t.id, t.nombre, c.id, c.nombre, c.color, c.orden "
+                            "FROM jornadas j JOIN torneos t ON t.id = j.torneo_id "
+                            "JOIN copas c ON c.id = t.copa_id WHERE j.id = ?", (jid,))
+        if not filas:
+            continue
+        jid, jnombre, jfecha, tid, tnombre, cid, cnombre, ccolor, corden = filas[0]
+        cats = [_exportar_categoria(cur, catid, jid, cnom)
+                for catid, cnom in _filas(cur, "SELECT id, nombre FROM categorias WHERE jornada_id = ? "
+                                               "ORDER BY orden, id", (jid,))]
+        jornada = {"id": jid, "nombre": jnombre, "fecha": str(jfecha or ""), "categorias": cats}
+        copa = copas.setdefault(cid, {"orden": corden or 0, "nombre": cnombre, "color": ccolor or "",
+                                      "torneos": {}})
+        copa["torneos"].setdefault(tid, {"nombre": tnombre, "jornadas": []})["jornadas"].append(jornada)
+    lista = [{"nombre": c["nombre"], "color": c["color"], "torneos": list(c["torneos"].values())}
+             for _cid, c in sorted(copas.items(), key=lambda kv: (kv[1]["orden"], kv[0]))]
+    primera = lista[0]["torneos"][0]["jornadas"][0]["id"] if lista else None
+    return {"actualizado": ahora, "jornada_id": primera, "copas": lista}
 
 
 def subir_r2(ruta):

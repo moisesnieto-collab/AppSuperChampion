@@ -46,6 +46,10 @@ class TorneoService:
         return ConfiguracionRepository.obtener_jornada_publica()
 
     @staticmethod
+    def es_jornada_publica(jornada_id: int) -> bool:
+        return jornada_id in ConfiguracionRepository.obtener_jornadas_publicas().values()
+
+    @staticmethod
     def cambiar_pin(pin_actual: str, pin_nuevo: str) -> bool:
         if TorneoService.validar_pin(pin_actual) != "organizador":
             return False

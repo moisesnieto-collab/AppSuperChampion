@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SuperCampeones</title>
 <style>
-  :root{--bg:#0B1020;--s:#141B33;--s2:#1B2444;--b:#2A345C;--t:#F2F5FF;--t2:#B6C0E0;--m:#7E8AB3;--ok:#22C55E;--live:#EF4444}
+  :root{--bg:#0B1020;--s:#141B33;--s2:#1B2444;--b:#2A345C;--t:#F2F5FF;--t2:#B6C0E0;--m:#7E8AB3;--ok:#22C55E;--live:#EF4444;--cc:#F5C518;--cct:#0B1020}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--t);font-family:-apple-system,Segoe UI,Roboto,sans-serif}
   main{max-width:560px;margin:0 auto;padding:12px}
@@ -17,7 +17,10 @@
   .barra small{color:var(--m);font-weight:700;letter-spacing:.5px}
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
   .chip{padding:8px 14px;border-radius:20px;background:var(--s2);border:0;color:var(--t2);opacity:.6;cursor:pointer}
-  .chip.on{background:#fff;color:#0B1020;font-weight:800;opacity:1}
+  .chip.on{background:var(--s2);color:#fff;font-weight:800;opacity:1;box-shadow:0 0 0 2px var(--cc)}
+  h1{color:#fff}
+  #estado{color:#ffffffcc}
+  .tab.on{border-color:var(--cc)}
   .jor{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 12px}
   .jor button{background:none;border:0;color:var(--t);font-size:22px;cursor:pointer}
   .jor button:disabled{opacity:.3}
@@ -149,7 +152,13 @@ function pintar() {
   const app = document.getElementById("app");
   if (!datos || !datos.copas.length) { app.innerHTML = `<div class="vacio">Sin datos</div>`; return; }
   const copas = datos.copas; sel.copa = clamp(sel.copa, copas);
-  const copa = copas[sel.copa]; sel.torneo = clamp(sel.torneo, copa.torneos);
+  const copa = copas[sel.copa];
+  const col = /^#[0-9a-fA-F]{6}$/.test(copa.color || "") ? copa.color : "#F5C518";
+  const bright = "#" + [1, 3, 5].map(i => { const c = parseInt(col.slice(i, i + 2), 16); return Math.floor(c + (255 - c) * 0.35).toString(16).padStart(2, "0"); }).join("");
+  document.documentElement.style.setProperty("--cc", bright);
+  document.body.style.background = col;
+  document.documentElement.style.background = col;
+  sel.torneo = clamp(sel.torneo, copa.torneos);
   const torneo = copa.torneos[sel.torneo] || {nombre: "", jornadas: []};
   sel.jor = clamp(sel.jor, torneo.jornadas);
   const jor = torneo.jornadas[sel.jor] || {nombre: "", categorias: []};

@@ -27,7 +27,7 @@ def publicar_jornada_completa(jornada_id=None) -> dict:
     global _documento
     exp = _exportador()
     with _lock:
-        datos = exp.generar(jornada_id)
+        datos = exp.generar()  # siempre el documento completo: una jornada pública por Copa
         exp.escribir(datos=datos)
         _documento = datos
     return datos
@@ -61,13 +61,14 @@ def _publicar_pendientes():
         cur = obtener_conexion().cursor()
         with _lock:
             doc = _documento
-            jid = doc.get("jornada_id")
+            jids = {jor.get("id") for copa in doc.get("copas", []) for t in copa.get("torneos", [])
+                    for jor in t.get("jornadas", [])}
             cambio = False
             for catid in cats:
                 fila = exp._filas(cur, "SELECT nombre, jornada_id FROM categorias WHERE id = ?", (catid,))
-                if not fila or fila[0][1] != jid:
+                if not fila or fila[0][1] not in jids:
                     continue
-                nodo = exp._exportar_categoria(cur, catid, jid, fila[0][0])
+                nodo = exp._exportar_categoria(cur, catid, fila[0][1], fila[0][0])
                 cambio = reemplazar_categoria(doc, nodo) or cambio
             if cambio:
                 doc["actualizado"] = datetime.now(timezone.utc).isoformat(timespec="seconds")

@@ -541,9 +541,51 @@ class ConfiguracionRepository:
             return None
 
     @staticmethod
+    def _copa_de_jornada(cursor, jornada_id: int) -> Optional[int]:
+        cursor.execute("SELECT t.copa_id FROM jornadas j JOIN torneos t ON t.id = j.torneo_id WHERE j.id = ?",
+                       (jornada_id,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    @staticmethod
+    def obtener_jornadas_publicas() -> Dict[int, int]:
+        """{copa_id: jornada_id}: una jornada pública por Copa (incluye la clave antigua global)."""
+        cursor = obtener_conexion().cursor()
+        cursor.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'jornada_publica_copa_%'")
+        res = {}
+        for clave, valor in cursor.fetchall():
+            try:
+                res[int(clave.rsplit('_', 1)[1])] = int(valor)
+            except (TypeError, ValueError):
+                continue
+        antigua = ConfiguracionRepository.obtener_jornada_publica()
+        if antigua:
+            copa_id = ConfiguracionRepository._copa_de_jornada(cursor, antigua)
+            if copa_id is not None and copa_id not in res:
+                res[copa_id] = antigua
+        return res
+
+    @staticmethod
     def guardar_jornada_publica(jornada_id: int):
+        """Marca la jornada como pública de su Copa (reemplaza solo la de esa Copa)."""
         con = obtener_conexion()
         cursor = con.cursor()
+        # Conserva la marca antigua (global) como marca de su Copa antes de sobrescribirla
+        antigua = ConfiguracionRepository.obtener_jornada_publica()
+        if antigua and antigua != jornada_id:
+            copa_ant = ConfiguracionRepository._copa_de_jornada(cursor, antigua)
+            if copa_ant is not None:
+                cursor.execute("SELECT 1 FROM configuracion WHERE clave = ?",
+                               (f'jornada_publica_copa_{copa_ant}',))
+                if not cursor.fetchone():
+                    cursor.execute("INSERT INTO configuracion (clave, valor) VALUES (?, ?)",
+                                   (f'jornada_publica_copa_{copa_ant}', str(antigua)))
+        copa_id = ConfiguracionRepository._copa_de_jornada(cursor, jornada_id)
+        if copa_id is not None:
+            clave = f'jornada_publica_copa_{copa_id}'
+            cursor.execute("DELETE FROM configuracion WHERE clave = ?", (clave,))
+            cursor.execute("INSERT INTO configuracion (clave, valor) VALUES (?, ?)", (clave, str(jornada_id)))
+        # Clave global: última jornada marcada (compatibilidad)
         cursor.execute("DELETE FROM configuracion WHERE clave = 'jornada_publica'")
         cursor.execute("INSERT INTO configuracion (clave, valor) VALUES ('jornada_publica', ?)", (str(jornada_id),))
         con.commit()

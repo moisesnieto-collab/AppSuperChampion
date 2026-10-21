@@ -342,7 +342,7 @@ def crear_filtros(estado: dict, page: ft.Page, on_cambio: Callable, tema: dict, 
         ft.Column([
             _etiqueta("JORNADA"),
             ft.Text((f"{jornada_act.nombre} · {fecha_sin_hora(jornada_act.fecha)}"
-                     + (" ★ pública" if jornada_act.id == TorneoService.obtener_jornada_publica() else ""))
+                     + (" ★ pública" if TorneoService.es_jornada_publica(jornada_act.id) else ""))
                     if jornada_act else "Sin jornadas",
                     size=14, weight=ft.FontWeight.W_700, color=TEXT),
         ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
