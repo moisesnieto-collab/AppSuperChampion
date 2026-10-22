@@ -566,6 +566,19 @@ class ConfiguracionRepository:
         return res
 
     @staticmethod
+    def desmarcar_jornada_publica(jornada_id: int):
+        """Quita la marca pública de la jornada (clave de su Copa y clave global antigua)."""
+        con = obtener_conexion()
+        cursor = con.cursor()
+        copa_id = ConfiguracionRepository._copa_de_jornada(cursor, jornada_id)
+        if copa_id is not None:
+            cursor.execute("DELETE FROM configuracion WHERE clave = ? AND valor = ?",
+                           (f'jornada_publica_copa_{copa_id}', str(jornada_id)))
+        cursor.execute("DELETE FROM configuracion WHERE clave = 'jornada_publica' AND valor = ?",
+                       (str(jornada_id),))
+        con.commit()
+
+    @staticmethod
     def guardar_jornada_publica(jornada_id: int):
         """Marca la jornada como pública de su Copa (reemplaza solo la de esa Copa)."""
         con = obtener_conexion()

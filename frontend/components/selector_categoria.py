@@ -994,11 +994,20 @@ def crear_selector_categoria_y_dia(
                 page.snack_bar.open = True
                 page.update()
 
+            es_publica = TorneoService.es_jornada_publica(jornada_activa_id)
+
             def _marcar_publica():
                 try:
-                    TorneoService.marcar_jornada_publica(jornada_activa_id, es_organizador=True)
-                    j = JornadaRepository.obtener_por_id(jornada_activa_id)
-                    _snack(f"✅ Jornada pública marcada{': ' + str(j.fecha)[:10] if j and j.fecha else ''}")
+                    from backend.services.publicador import publicar_jornada_completa
+                    if es_publica:
+                        TorneoService.desmarcar_jornada_publica(jornada_activa_id, es_organizador=True)
+                        _snack("⏳ Quitando jornada de pública...")
+                        publicar_jornada_completa()
+                        _snack("✅ Jornada quitada de pública")
+                    else:
+                        TorneoService.marcar_jornada_publica(jornada_activa_id, es_organizador=True)
+                        j = JornadaRepository.obtener_por_id(jornada_activa_id)
+                        _snack(f"✅ Jornada pública marcada{': ' + str(j.fecha)[:10] if j and j.fecha else ''}")
                     on_cambio_seleccion()
                 except Exception as ex:
                     _snack(f"❌ {ex}", False)
@@ -1014,8 +1023,9 @@ def crear_selector_categoria_y_dia(
                 except Exception as ex:
                     _snack(f"❌ Error publicando: {ex}", False)
 
-            acc_jornada.append(_icono_accion(ft.Icons.STAR, COLOR_CELESTE, "Marcar como jornada pública",
-                                             _marcar_publica))
+            acc_jornada.append(_icono_accion(
+                ft.Icons.STAR if es_publica else ft.Icons.STAR_BORDER, COLOR_CELESTE,
+                "Quitar de pública" if es_publica else "Marcar como jornada pública", _marcar_publica))
             acc_jornada.append(_icono_accion(ft.Icons.CLOUD_UPLOAD, COLOR_VERDE, "Publicar jornada completa",
                                              _publicar_completa))
             acc_jornada.append(_icono_accion(ft.Icons.DELETE, COLOR_ROJO, "Eliminar jornada",

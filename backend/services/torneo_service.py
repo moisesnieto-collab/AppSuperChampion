@@ -42,6 +42,12 @@ class TorneoService:
         ConfiguracionRepository.guardar_jornada_publica(int(jornada_id))
 
     @staticmethod
+    def desmarcar_jornada_publica(jornada_id: int, es_organizador: bool = False):
+        if not es_organizador:
+            raise PermissionError("Acción bloqueada: solo el organizador puede quitar la jornada pública.")
+        ConfiguracionRepository.desmarcar_jornada_publica(int(jornada_id))
+
+    @staticmethod
     def obtener_jornada_publica() -> Optional[int]:
         return ConfiguracionRepository.obtener_jornada_publica()
 

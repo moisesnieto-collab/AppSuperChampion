@@ -66,16 +66,13 @@ def resolver_jornada_id(cur, jornada_id=None):
 
 def _jornadas_a_publicar(cur, jornada_id=None) -> list:
     """Jornada indicada, o la jornada pública de cada Copa (las Copas sin marcar se omiten).
-    Si no hay ninguna marcada, usa la alternativa de resolver_jornada_id."""
+    Si no hay ninguna marcada, no se publica nada (web vacía)."""
     if jornada_id:
         return [jornada_id]
     from backend.database.repositories import ConfiguracionRepository
     ids = [j for j in ConfiguracionRepository.obtener_jornadas_publicas().values()
            if _filas(cur, "SELECT 1 FROM jornadas WHERE id = ?", (j,))]
-    if ids:
-        return ids
-    jid = resolver_jornada_id(cur)
-    return [jid] if jid else []
+    return ids
 
 
 def generar(jornada_id=None) -> dict:

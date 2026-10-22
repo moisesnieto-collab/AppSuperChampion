@@ -150,7 +150,11 @@ function cmp(a, b) {
 
 function pintar() {
   const app = document.getElementById("app");
-  if (!datos || !datos.copas.length) { app.innerHTML = `<div class="vacio">Sin datos</div>`; return; }
+  if (!datos) { app.innerHTML = `<div class="vacio">Cargando…</div>`; return; }
+  if (!datos.copas.length) {
+    app.innerHTML = `<div class="vacio"><div style="font-size:40px">📅</div><b style="color:var(--t)">No hay jornadas publicadas por ahora</b><br>Vuelve pronto: los marcadores aparecerán aquí cuando se publique una jornada.</div>`;
+    return;
+  }
   const copas = datos.copas; sel.copa = clamp(sel.copa, copas);
   const copa = copas[sel.copa];
   const col = /^#[0-9a-fA-F]{6}$/.test(copa.color || "") ? copa.color : "#F5C518";
